@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-VideoRobot — Audio Processor (نسخه تمیز و کامل)
+VideoRobot — Audio Processor (Clean & Complete Version)
 
-پردازش حرفه‌ای صوت با FFmpeg:
-1. تبدیل به استریو 48kHz
-2. اندازه‌گیری loudness هر کانال
-3. اعمال gain مجزا به L/R
-4. نرمال‌سازی دو مرحله‌ای EBU R128
+Professional audio processing with FFmpeg:
+1. Converts to stereo 48kHz
+2. Measures loudness per channel
+3. Applies per-channel gain
+4. Performs two-pass EBU R128 normalization
 
-مراجع:
+References:
 - FFmpeg Filters: aformat, pan, channelsplit, volume, loudnorm
 - EBU R128 loudness standard
 - Two-pass loudnorm workflow
@@ -30,25 +30,26 @@ log = logging.getLogger("VideoRobot.audio")
 
 
 # ===========================================================================
-# SECTION 1: توابع کمکی
+# SECTION 1: Helper Functions
 # ===========================================================================
 
-# الگوی استخراج JSON از stderr
-_JSON_PATTERN = re.compile(r"\{(?:[^{}]|(?R))*\}", re.DOTALL)
+# Pattern to extract JSON from stderr.
+# This non-recursive pattern is compatible with Python's re module and finds JSON objects, including nested ones.
+_JSON_PATTERN = re.compile(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", re.DOTALL)
 
 
 def _extract_last_json(stderr_text: str) -> Dict[str, Any]:
     """
-    استخراج آخرین JSON block از خروجی stderr
-    
-    loudnorm فرمت JSON را در stderr چاپ می‌کند.
-    این تابع آخرین JSON معتبر را برمی‌گرداند.
-    
+    Extracts the last JSON block from stderr output.
+
+    The loudnorm filter prints its stats in JSON format to stderr.
+    This function finds and parses the last valid JSON block.
+
     Args:
-        stderr_text: متن خروجی stderr
-    
+        stderr_text: The text from stderr.
+
     Returns:
-        دیکشنری JSON یا {} در صورت خطا
+        A dictionary parsed from the JSON, or an empty dict on error.
     """
     if not stderr_text:
         return {}
@@ -63,22 +64,22 @@ def _extract_last_json(stderr_text: str) -> Dict[str, Any]:
         
         return json.loads(last_match)
     except Exception as e:
-        log.warning("خطا در parse کردن JSON loudnorm: %s", e)
+        log.warning("Error parsing loudnorm JSON: %s", e)
         return {}
 
 
 def _sanitize_db(value: float, min_val: float, max_val: float, default: float) -> float:
     """
-    محدود کردن مقدار dB در محدوده امن
-    
+    Clamps a decibel value within a safe range.
+
     Args:
-        value: مقدار ورودی
-        min_val: حداقل مجاز
-        max_val: حداکثر مجاز
-        default: مقدار پیش‌فرض در صورت نامعتبر بودن
-    
+        value: The input value.
+        min_val: The minimum allowed value.
+        max_val: The maximum allowed value.
+        default: The default value if the input is invalid.
+
     Returns:
-        مقدار sanitize شده
+        The sanitized value.
     """
     try:
         if math.isnan(value) or math.isinf(value):
@@ -90,9 +91,8 @@ def _sanitize_db(value: float, min_val: float, max_val: float, default: float) -
 
 def _coalesce(*values: Any, default: Any) -> Any:
     """
-    برگرداندن اولین مقدار غیر None
-    
-    مشابه SQL COALESCE
+    Returns the first non-None value.
+    Similar to SQL COALESCE.
     """
     for val in values:
         if val is not None:
@@ -101,20 +101,20 @@ def _coalesce(*values: Any, default: Any) -> Any:
 
 
 def _ensure_directory(path: Path) -> None:
-    """ایجاد دایرکتوری با مدیریت خطا"""
+    """Creates a directory with error handling."""
     try:
         path.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        raise RuntimeError(f"خطا در ایجاد دایرکتوری: {path}") from e
+        raise RuntimeError(f"Error creating directory: {path}") from e
 
 
 def _get_binary_path(name: str, env_key: str, default: str) -> str:
-    """دریافت مسیر باینری از env یا پیش‌فرض"""
+    """Gets a binary path from an environment variable or a default."""
     return os.getenv(env_key, default or name)
 
 
 class _AudioInfo(TypedDict, total=False):
-    """اطلاعات پایه استریم صوتی"""
+    """Basic audio stream information."""
     channels: int
     sample_rate: int
     layout: str
@@ -122,13 +122,13 @@ class _AudioInfo(TypedDict, total=False):
 
 def _probe_audio_info(file_path: Path) -> _AudioInfo:
     """
-    استخراج اطلاعات صوت با ffprobe
-    
+    Extracts audio information using ffprobe.
+
     Args:
-        file_path: مسیر فایل صوتی
-    
+        file_path: The path to the audio file.
+
     Returns:
-        دیکشنری حاوی channels, sample_rate, layout
+        A dictionary containing channels, sample_rate, and layout.
     """
     ffprobe = _get_binary_path("ffprobe", "VR_FFPROBE_BIN", "ffprobe")
     
@@ -140,7 +140,7 @@ def _probe_audio_info(file_path: Path) -> _AudioInfo:
         str(file_path)
     ]
     
-    result = sh(cmd, "ffprobe audio info", check=False)
+    result = sh(cmd, "Probe audio info", check=False)
     
     try:
         data = json.loads(result.stdout or "{}")
@@ -152,23 +152,23 @@ def _probe_audio_info(file_path: Path) -> _AudioInfo:
             "layout": str(stream.get("channel_layout") or ""),
         }
     except Exception as e:
-        log.warning("خطا در parse کردن اطلاعات صوت: %s", e)
+        log.warning("Error parsing audio info: %s", e)
         return {"channels": 0, "sample_rate": 0, "layout": ""}
 
 
 # ===========================================================================
-# SECTION 2: مدل داده
+# SECTION 2: Data Models
 # ===========================================================================
 
 @dataclass(frozen=True)
 class LoudnessTargets:
     """
-    اهداف نرمال‌سازی EBU R128
-    
+    EBU R128 normalization targets.
+
     Attributes:
-        I: Integrated Loudness (LUFS) - معمولاً -16.0
-        LRA: Loudness Range (LU) - معمولاً 11.0
-        TP: True Peak (dBFS) - معمولاً -2.0
+        I: Integrated Loudness (LUFS) - typically -16.0
+        LRA: Loudness Range (LU) - typically 11.0
+        TP: True Peak (dBFS) - typically -2.0
     """
     I: float    # target LUFS
     LRA: float  # target loudness range
@@ -176,97 +176,97 @@ class LoudnessTargets:
 
 
 # ===========================================================================
-# SECTION 3: کلاس اصلی AudioProcessor
+# SECTION 3: Main AudioProcessor Class
 # ===========================================================================
 
 class AudioProcessor:
     """
-    پردازشگر صوت با pipeline چند مرحله‌ای
-    
+    Processes audio with a multi-stage pipeline.
+
     Pipeline:
-    1. تبدیل به استریو 48kHz
-    2. اندازه‌گیری loudness هر کانال
-    3. اعمال gain مجزا به L/R
-    4. نرمال‌سازی دو مرحله‌ای با loudnorm
+    1. Convert to stereo 48kHz
+    2. Measure loudness per channel
+    3. Apply per-channel gain
+    4. Two-pass normalization with loudnorm
     """
     
     def __init__(self, tmp: Path) -> None:
         """
         Args:
-            tmp: مسیر دایرکتوری موقت برای فایل‌های میانی
+            tmp: The path to the temporary directory for intermediate files.
         
         Raises:
-            TypeError: اگر tmp از نوع Path نباشد
+            TypeError: If tmp is not a Path object.
         """
         if not isinstance(tmp, Path):
-            raise TypeError(f"tmp باید Path باشد، نه {type(tmp).__name__}")
+            raise TypeError(f"tmp must be a Path, not {type(tmp).__name__}")
         
         self.tmp = tmp
         _ensure_directory(self.tmp)
     
     # -----------------------------------------------------------------------
-    # مرحله 1: تبدیل به استریو
+    # Stage 1: Ensure Stereo
     # -----------------------------------------------------------------------
     
     def _ensure_stereo(self, source: Path) -> Path:
         """
-        اطمینان از استریو بودن با 48kHz
-        
-        رفتار:
-        - مونو → تکثیر به استریو (L=R)
-        - استریو → حفظ کانال‌های جداگانه
-        - همیشه: 48kHz, PCM s16le
+        Ensures the audio is stereo at 48kHz.
+
+        Behavior:
+        - Mono → Duplicates to stereo (L=R)
+        - Stereo → Preserves separate channels
+        - Always: 48kHz, PCM s16le
         
         Args:
-            source: فایل ورودی
+            source: The input file.
         
         Returns:
-            مسیر فایل استریو شده
+            The path to the stereo-converted file.
         
         Raises:
-            FileNotFoundError: اگر فایل ورودی وجود نداشته باشد
+            FileNotFoundError: If the input file does not exist.
         """
         if not isinstance(source, Path):
-            raise TypeError(f"source باید Path باشد، نه {type(source).__name__}")
+            raise TypeError(f"source must be a Path, not {type(source).__name__}")
         
         if not source.exists():
-            raise FileNotFoundError(f"فایل صوتی پیدا نشد: {source}")
+            raise FileNotFoundError(f"Audio file not found: {source}")
         
         ffmpeg = _get_binary_path("ffmpeg", "VR_FFMPEG_BIN", "ffmpeg")
         output = self.tmp / "audio_stereo.wav"
         
-        # تشخیص تعداد کانال‌ها
+        # Detect number of channels
         info = _probe_audio_info(source)
         channels = info.get("channels", 0)
         
-        # انتخاب فیلتر بر اساس تعداد کانال
+        # Choose filter based on channel count
         if channels == 1:
-            # تکثیر مونو به استریو
+            # Duplicate mono to stereo
             audio_filter = (
                 "aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo,"
                 "pan=stereo|c0=FL|c1=FL"
             )
         else:
-            # حفظ استریو، فقط تبدیل فرمت
+            # Preserve stereo, just convert format
             audio_filter = "aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo"
         
         sh(
             [
                 ffmpeg, "-y", "-hide_banner", "-nostats",
-                "-vn", "-sn",  # بدون ویدئو و زیرنویس
+                "-vn", "-sn",  # No video, no subtitles
                 "-i", str(source),
                 "-af", audio_filter,
                 "-c:a", "pcm_s16le",
                 str(output)
             ],
-            "تبدیل به استریو 48kHz"
+            "Convert to stereo 48kHz"
         )
         
-        log.debug("فایل به استریو تبدیل شد: %s", output)
+        log.debug("File converted to stereo: %s", output)
         return output
     
     # -----------------------------------------------------------------------
-    # مرحله 2: اندازه‌گیری loudness
+    # Stage 2: Measure Loudness
     # -----------------------------------------------------------------------
     
     def _measure_loudness_per_channel(
@@ -275,22 +275,22 @@ class AudioProcessor:
         targets: LoudnessTargets
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
-        اندازه‌گیری مجزا loudness کانال‌های L و R
-        
-        از -map_channel برای جدا کردن کانال‌ها استفاده می‌شود.
+        Measures loudness for L and R channels separately.
+
+        Uses -map_channel to isolate channels.
         
         Args:
-            wav_file: فایل استریو WAV
-            targets: اهداف loudness
+            wav_file: The stereo WAV file.
+            targets: The loudness targets.
         
         Returns:
-            (stats_left, stats_right): دو دیکشنری JSON loudnorm
+            (stats_left, stats_right): Two loudnorm JSON dictionaries.
         
         Raises:
-            FileNotFoundError: اگر فایل وجود نداشته باشد
+            FileNotFoundError: If the file does not exist.
         """
         if not wav_file.exists():
-            raise FileNotFoundError(f"فایل برای probe پیدا نشد: {wav_file}")
+            raise FileNotFoundError(f"File for probe not found: {wav_file}")
         
         ffmpeg = _get_binary_path("ffmpeg", "VR_FFMPEG_BIN", "ffmpeg")
         
@@ -299,29 +299,29 @@ class AudioProcessor:
             f"print_format=json"
         )
         
-        # اندازه‌گیری کانال چپ (L)
+        # Measure left channel (L)
         left_stderr = sh(
             [
                 ffmpeg, "-hide_banner", "-nostats",
                 "-i", str(wav_file),
-                "-map_channel", "0.0.0",  # کانال اول
+                "-map_channel", "0.0.0",  # First channel
                 "-af", loudnorm_args,
                 "-f", "null", "-"
             ],
-            "اندازه‌گیری loudness (L)",
+            "Measure loudness (L)",
             check=False
         ).stderr or ""
         
-        # اندازه‌گیری کانال راست (R)
+        # Measure right channel (R)
         right_stderr = sh(
             [
                 ffmpeg, "-hide_banner", "-nostats",
                 "-i", str(wav_file),
-                "-map_channel", "0.0.1",  # کانال دوم
+                "-map_channel", "0.0.1",  # Second channel
                 "-af", loudnorm_args,
                 "-f", "null", "-"
             ],
-            "اندازه‌گیری loudness (R)",
+            "Measure loudness (R)",
             check=False
         ).stderr or ""
         
@@ -331,7 +331,7 @@ class AudioProcessor:
         return left_stats, right_stats
     
     # -----------------------------------------------------------------------
-    # مرحله 3: اعمال gain
+    # Stage 3: Apply Gain
     # -----------------------------------------------------------------------
     
     def _apply_per_channel_gain(
@@ -341,32 +341,32 @@ class AudioProcessor:
         gain_right_db: float
     ) -> Path:
         """
-        اعمال gain مجزا به هر کانال
-        
-        استفاده از: channelsplit → volume → join
+        Applies separate gain to each channel.
+
+        Uses: channelsplit → volume → join
         
         Args:
-            wav_file: فایل ورودی استریو
-            gain_left_db: gain کانال چپ (dB)
-            gain_right_db: gain کانال راست (dB)
+            wav_file: The input stereo file.
+            gain_left_db: Gain for the left channel (dB).
+            gain_right_db: Gain for the right channel (dB).
         
         Returns:
-            مسیر فایل با gain اعمال شده
+            The path to the gain-adjusted file.
         
         Raises:
-            FileNotFoundError: اگر فایل وجود نداشته باشد
+            FileNotFoundError: If the file does not exist.
         """
         if not wav_file.exists():
-            raise FileNotFoundError(f"فایل برای gain پیدا نشد: {wav_file}")
+            raise FileNotFoundError(f"File for gain not found: {wav_file}")
         
         ffmpeg = _get_binary_path("ffmpeg", "VR_FFMPEG_BIN", "ffmpeg")
         output = self.tmp / "audio_balanced.wav"
         
-        # محدود کردن gain در محدوده امن
+        # Clamp gain to a safe range
         gain_l = _sanitize_db(gain_left_db, -24.0, 24.0, 0.0)
         gain_r = _sanitize_db(gain_right_db, -24.0, 24.0, 0.0)
         
-        # ساخت filter complex
+        # Build filter complex
         filter_complex = (
             "[0:a]channelsplit=channel_layout=stereo[FL][FR];"
             f"[FL]volume={gain_l:.3f}dB[FL2];"
@@ -384,14 +384,14 @@ class AudioProcessor:
                 "-c:a", "pcm_s16le",
                 str(output)
             ],
-            "اعمال gain به کانال‌ها"
+            "Apply gain to channels"
         )
         
-        log.debug("Gain اعمال شد: L=%.2fdB, R=%.2fdB", gain_l, gain_r)
+        log.debug("Gain applied: L=%.2fdB, R=%.2fdB", gain_l, gain_r)
         return output
     
     # -----------------------------------------------------------------------
-    # مرحله 4: نرمال‌سازی دو مرحله‌ای
+    # Stage 4: Two-Pass Normalization
     # -----------------------------------------------------------------------
     
     def _normalize_two_pass(
@@ -403,30 +403,30 @@ class AudioProcessor:
         bitrate: str
     ) -> Path:
         """
-        نرمال‌سازی دو مرحله‌ای با loudnorm
-        
-        مرحله 1: probe و استخراج آمار
-        مرحله 2: اعمال با measured_* و offset
+        Performs two-pass normalization with loudnorm.
+
+        Pass 1: Probes and extracts statistics.
+        Pass 2: Applies normalization using measured_* and offset.
         
         Args:
-            wav_file: فایل ورودی
-            targets: اهداف loudness
-            codec: کدک خروجی (مثلاً "aac")
-            bitrate: bitrate (مثلاً "192k")
+            wav_file: The input file.
+            targets: The loudness targets.
+            codec: The output codec (e.g., "aac").
+            bitrate: The output bitrate (e.g., "192k").
         
         Returns:
-            مسیر فایل نرمال‌سازی شده
+            The path to the normalized file.
         
         Raises:
-            FileNotFoundError: اگر فایل وجود نداشته باشد
-            RuntimeError: اگر مرحله اول شکست بخورد
+            FileNotFoundError: If the file does not exist.
+            RuntimeError: If the first pass fails.
         """
         if not wav_file.exists():
-            raise FileNotFoundError(f"فایل برای loudnorm پیدا نشد: {wav_file}")
+            raise FileNotFoundError(f"File for loudnorm not found: {wav_file}")
         
         ffmpeg = _get_binary_path("ffmpeg", "VR_FFMPEG_BIN", "ffmpeg")
         
-        # مرحله 1: probe
+        # Pass 1: Probe
         probe_filter = (
             f"loudnorm=I={targets.I}:LRA={targets.LRA}:TP={targets.TP}:"
             f"print_format=json"
@@ -445,9 +445,9 @@ class AudioProcessor:
         
         stats = _extract_last_json(probe_stderr)
         if not stats:
-            raise RuntimeError("مرحله اول loudnorm شکست خورد: JSON پیدا نشد")
+            raise RuntimeError("Loudnorm pass-1 failed: JSON not found")
         
-        # استخراج آمار با fallback
+        # Extract stats with fallbacks
         measured_I = float(_coalesce(
             stats.get("input_i"),
             stats.get("measured_I"),
@@ -474,7 +474,7 @@ class AudioProcessor:
             default=0.0
         ))
         
-        # مرحله 2: اعمال
+        # Pass 2: Apply
         output = self.tmp / "audio_loudnorm.m4a"
         
         apply_filter = (
@@ -484,7 +484,7 @@ class AudioProcessor:
             f"offset={offset}:linear=true:print_format=summary"
         )
         
-        # تنظیمات کدک
+        # Codec settings
         encoder_args = ["-c:a", codec]
         if codec.lower() in {"aac", "libfdk_aac", "libopus", "libmp3lame"} and bitrate:
             encoder_args += ["-b:a", bitrate]
@@ -502,41 +502,41 @@ class AudioProcessor:
         )
         
         log.debug(
-            "Loudnorm تکمیل شد: measured(I/LRA/TP)=(%.2f/%.2f/%.2f), offset=%.2f",
+            "Loudnorm complete: measured(I/LRA/TP)=(%.2f/%.2f/%.2f), offset=%.2f",
             measured_I, measured_LRA, measured_TP, offset
         )
         
         return output
     
     # -----------------------------------------------------------------------
-    # متد عمومی اصلی
+    # Main Public Method
     # -----------------------------------------------------------------------
     
     def normalize(self, source: Path, config: Any) -> Path:
         """
-        Pipeline کامل نرمال‌سازی صوت
+        Full audio normalization pipeline.
         
-        مراحل:
-        1. تبدیل به استریو 48kHz
-        2. اندازه‌گیری loudness هر کانال
-        3. اعمال gain پیش‌تنظیم به L/R
-        4. نرمال‌سازی دو مرحله‌ای EBU R128
+        Stages:
+        1. Convert to stereo 48kHz
+        2. Measure loudness per channel
+        3. Apply pre-gain to L/R
+        4. Two-pass EBU R128 normalization
         
         Args:
-            source: مسیر فایل صوتی ورودی
-            config: شیء config با ویژگی‌های:
-                - target_lufs: هدف LUFS (مثلاً -16.0)
-                - target_lra: هدف LRA (مثلاً 11.0)
-                - target_tp: هدف True Peak (مثلاً -2.0)
-                - output_codec (اختیاری): کدک خروجی (پیش‌فرض: "aac")
-                - output_bitrate (اختیاری): bitrate (پیش‌فرض: "192k")
+            source: Path to the input audio file.
+            config: A config object with attributes:
+                - target_lufs: Target LUFS (e.g., -16.0)
+                - target_lra: Target LRA (e.g., 11.0)
+                - target_tp: Target True Peak (e.g., -2.0)
+                - output_codec (optional): Output codec (default: "aac")
+                - output_bitrate (optional): Output bitrate (default: "192k")
         
         Returns:
-            مسیر فایل صوتی نرمال‌سازی شده
+            Path to the normalized audio file.
         
         Raises:
-            TypeError: اگر source یا config نامعتبر باشد
-            FileNotFoundError: اگر فایل ورودی وجود نداشته باشد
+            TypeError: If source or config is invalid.
+            FileNotFoundError: If the input file does not exist.
         
         Example:
             >>> processor = AudioProcessor(Path("./tmp"))
@@ -546,12 +546,12 @@ class AudioProcessor:
             ... )
         """
         if not isinstance(source, Path):
-            raise TypeError(f"source باید Path باشد، نه {type(source).__name__}")
+            raise TypeError(f"source must be a Path, not {type(source).__name__}")
         
         if not source.exists():
-            raise FileNotFoundError(f"فایل صوتی پیدا نشد: {source}")
+            raise FileNotFoundError(f"Audio file not found: {source}")
         
-        # استخراج اهداف از config
+        # Extract targets from config
         try:
             targets = LoudnessTargets(
                 I=float(config.target_lufs),
@@ -560,22 +560,22 @@ class AudioProcessor:
             )
         except (AttributeError, ValueError, TypeError) as e:
             raise TypeError(
-                "config باید دارای target_lufs, target_lra, target_tp باشد"
+                "config must have target_lufs, target_lra, and target_tp attributes"
             ) from e
         
-        # تنظیمات کدک
+        # Codec settings
         codec = getattr(config, "output_codec", os.getenv("VR_AUDIO_CODEC", "aac"))
         bitrate = getattr(config, "output_bitrate", os.getenv("VR_AUDIO_BITRATE", "192k"))
         
-        log.info("شروع نرمال‌سازی صوت: %s", source.name)
+        log.info("Starting audio normalization: %s", source.name)
         
-        # مرحله 1: استریو 48kHz
+        # Stage 1: Stereo 48kHz
         stereo_file = self._ensure_stereo(source)
         
-        # مرحله 2: اندازه‌گیری هر کانال
+        # Stage 2: Measure each channel
         left_stats, right_stats = self._measure_loudness_per_channel(stereo_file, targets)
         
-        # استخراج loudness هر کانال
+        # Extract loudness of each channel
         input_left = float(_coalesce(
             left_stats.get("input_i"),
             left_stats.get("measured_I"),
@@ -587,14 +587,14 @@ class AudioProcessor:
             default=targets.I
         ))
         
-        # محاسبه gain لازم برای هر کانال
+        # Calculate necessary gain for each channel
         gain_left = _sanitize_db(targets.I - input_left, -24.0, 24.0, 0.0)
         gain_right = _sanitize_db(targets.I - input_right, -24.0, 24.0, 0.0)
         
-        # مرحله 3: اعمال gain
+        # Stage 3: Apply gain
         balanced_file = self._apply_per_channel_gain(stereo_file, gain_left, gain_right)
         
-        # مرحله 4: نرمال‌سازی نهایی
+        # Stage 4: Final normalization
         final_file = self._normalize_two_pass(
             balanced_file,
             targets,
@@ -603,7 +603,7 @@ class AudioProcessor:
         )
         
         log.info(
-            "✅ نرمال‌سازی تکمیل شد: "
+            "✅ Normalization complete: "
             "targets(I/LRA/TP)=(%.2f/%.2f/%.2f) | "
             "pre-gain(L/R)=(%.2f/%.2f)dB | "
             "codec=%s bitrate=%s",
@@ -616,5 +616,5 @@ class AudioProcessor:
 
 
 # ===========================================================================
-# پایان فایل
+# End of File
 # ===========================================================================
