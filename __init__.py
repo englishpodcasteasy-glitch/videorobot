@@ -14,7 +14,6 @@ import os
 from importlib import metadata
 from typing import Optional, TextIO
 
-
 # ===========================================================================
 # SECTION 1: تشخیص نسخه
 # ===========================================================================
@@ -45,21 +44,94 @@ __version__ = _detect_version()
 
 
 # ===========================================================================
-# SECTION 2: API عمومی
+# SECTION 2: وارد کردن و صادر کردن کلاس‌های اصلی
+# ===========================================================================
+
+# وارد کردن کلاس‌های پیکربندی از ماژول config
+from .config import (
+    Paths,
+    ProjectCfg,
+    AudioCfg,
+    CaptionCfg,
+    FigureCfg,
+    IntroOutroCfg,
+    CTACfg,
+    BGMCfg,
+    BrollCfg,
+    VisualCfg,
+    ShortsCfg,
+    Aspect,
+    CaptionPosition,
+    ShortsMode,
+    FONTS,
+)
+
+# وارد کردن کلاس‌های اصلی از ماژول‌های دیگر
+from .renderer import Renderer
+from .scheduler import Scheduler
+from .subtitles import SubtitleWriter
+from .audio_processor import AudioProcessor
+
+# وارد کردن توابع کمکی
+from .utils import (
+    sh,
+    setup_logging,
+    sanitize_filename,
+    hex_to_0xRRGGBB,
+    srt_time,
+    hhmmss_cs,
+    build_fonts_only,
+    pick_default_font_name,
+    mount_drive_once,
+    resolve_drive_base,
+    sync_from_drive_to_local,
+    ensure_pkg_safe,
+    docs_guard,
+)
+
+
+# ===========================================================================
+# SECTION 3: تعریف API عمومی
 # ===========================================================================
 
 __all__ = [
-    # ماژول‌ها
-    "config",
-    "utils",
-    "scheduler",
-    "audio_processor",
-    "subtitles",
-    "renderer",
-    "main",
+    # کلاس‌های پیکربندی
+    "Paths",
+    "ProjectCfg",
+    "AudioCfg",
+    "CaptionCfg",
+    "FigureCfg",
+    "IntroOutroCfg",
+    "CTACfg",
+    "BGMCfg",
+    "BrollCfg",
+    "VisualCfg",
+    "ShortsCfg",
+    "Aspect",
+    "CaptionPosition",
+    "ShortsMode",
+    "FONTS",
     
-    # توابع
+    # کلاس‌های اصلی
+    "Renderer",
+    "Scheduler",
+    "SubtitleWriter",
+    "AudioProcessor",
+    
+    # توابع کمکی
+    "sh",
     "setup_logging",
+    "sanitize_filename",
+    "hex_to_0xRRGGBB",
+    "srt_time",
+    "hhmmss_cs",
+    "build_fonts_only",
+    "pick_default_font_name",
+    "mount_drive_once",
+    "resolve_drive_base",
+    "sync_from_drive_to_local",
+    "ensure_pkg_safe",
+    "docs_guard",
     
     # متغیرها
     "__version__",
@@ -67,7 +139,7 @@ __all__ = [
 
 
 # ===========================================================================
-# SECTION 3: سیستم Logging
+# SECTION 4: سیستم Logging
 # ===========================================================================
 
 _LOGGER_NAME = "VideoRobot"
@@ -144,7 +216,7 @@ def setup_logging(
 
 
 # ===========================================================================
-# SECTION 4: مقداردهی اولیه خودکار
+# SECTION 5: مقداردهی اولیه خودکار
 # ===========================================================================
 
 # راه‌اندازی logger پیش‌فرض
