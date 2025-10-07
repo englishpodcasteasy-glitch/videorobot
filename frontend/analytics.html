@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - VideoRobot AI</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Core Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0B1220 0%, #1E293B 50%, #0F172A 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-effect {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 116, 139, 0.2);
+        }
+        
+        .metric-card {
+            transition: all 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.2);
+        }
+        
+        .chart-container {
+            min-height: 300px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.4);
+        }
+        
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease;
+        }
+        
+        .scroll-reveal.revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .trend-up {
+            color: #10B981;
+        }
+        
+        .trend-down {
+            color: #EF4444;
+        }
+        
+        .trend-neutral {
+            color: #6B7280;
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-circle {
+            stroke-dasharray: 251.2;
+            stroke-dashoffset: 251.2;
+            transition: stroke-dashoffset 0.5s ease-in-out;
+        }
+        
+        .filter-button {
+            transition: all 0.3s ease;
+        }
+        
+        .filter-button.active {
+            background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+            color: white;
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-white">VideoRobot AI</h1>
+                        <p class="text-xs text-slate-400">Professional Video Creation</p>
+                    </div>
+                </div>
+                
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="index.html" class="text-slate-300 hover:text-white transition-colors">Editor</a>
+                    <a href="templates.html" class="text-slate-300 hover:text-white transition-colors">Templates</a>
+                    <a href="projects.html" class="text-slate-300 hover:text-white transition-colors">Projects</a>
+                    <a href="analytics.html" class="text-blue-400 hover:text-blue-300 font-medium transition-colors">Analytics</a>
+                </div>
+                
+                <!-- User Actions -->
+                <div class="flex items-center space-x-4">
+                    <button onclick="exportReport()" class="glass-effect px-4 py-2 rounded-lg font-medium hover:bg-slate-700 transition-colors flex items-center space-x-2">
+                        <i class="fas fa-download text-sm"></i>
+                        <span>Export</span>
+                    </button>
+                    <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center cursor-pointer">
+                        <span class="text-white font-semibold text-sm">JD</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="pt-16">
+        <!-- Header Section -->
+        <section class="py-12 bg-gradient-to-br from-slate-900 to-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-4xl font-bold text-white mb-2">Analytics Dashboard</h1>
+                        <p class="text-xl text-slate-300">Track your video performance and engagement metrics</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <select class="bg-slate-800 text-white px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option>Last 30 Days</option>
+                            <option>Last 7 Days</option>
+                            <option>Last 90 Days</option>
+                            <option>This Year</option>
+                        </select>
+                        <button onclick="refreshData()" class="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition-colors">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Key Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="metric-card glass-effect p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-eye text-white text-xl"></i>
+                            </div>
+                            <span class="trend-up text-sm font-medium">
+                                <i class="fas fa-arrow-up mr-1"></i>12.5%
+                            </span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1">24,892</div>
+                        <div class="text-slate-400 text-sm">Total Views</div>
+                    </div>
+                    
+                    <div class="metric-card glass-effect p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-heart text-white text-xl"></i>
+                            </div>
+                            <span class="trend-up text-sm font-medium">
+                                <i class="fas fa-arrow-up mr-1"></i>8.3%
+                            </span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1">1,847</div>
+                        <div class="text-slate-400 text-sm">Engagement Rate</div>
+                    </div>
+                    
+                    <div class="metric-card glass-effect p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-share text-white text-xl"></i>
+                            </div>
+                            <span class="trend-up text-sm font-medium">
+                                <i class="fas fa-arrow-up mr-1"></i>15.7%
+                            </span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1">892</div>
+                        <div class="text-slate-400 text-sm">Shares</div>
+                    </div>
+                    
+                    <div class="metric-card glass-effect p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-cyan-600 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-clock text-white text-xl"></i>
+                            </div>
+                            <span class="trend-down text-sm font-medium">
+                                <i class="fas fa-arrow-down mr-1"></i>3.2%
+                            </span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1">2:34</div>
+                        <div class="text-slate-400 text-sm">Avg. Watch Time</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Charts Section -->
+        <section class="py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <!-- Views Over Time -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-xl font-bold text-white">Views Over Time</h3>
+                            <div class="flex items-center space-x-2">
+                                <button class="filter-button active px-3 py-1 rounded-lg text-sm bg-slate-700 text-slate-300" data-period="7d">7D</button>
+                                <button class="filter-button px-3 py-1 rounded-lg text-sm bg-slate-700 text-slate-300" data-period="30d">30D</button>
+                                <button class="filter-button px-3 py-1 rounded-lg text-sm bg-slate-700 text-slate-300" data-period="90d">90D</button>
+                            </div>
+                        </div>
+                        <div id="views-chart" class="chart-container"></div>
+                    </div>
+                    
+                    <!-- Engagement Metrics -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-xl font-bold text-white">Engagement Breakdown</h3>
+                            <button onclick="showComingSoon()" class="text-blue-400 hover:text-blue-300 text-sm">
+                                View Details
+                            </button>
+                        </div>
+                        <div id="engagement-chart" class="chart-container"></div>
+                    </div>
+                </div>
+                
+                <!-- Top Performing Videos and Audience Demographics -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Top Performing Videos -->
+                    <div class="lg:col-span-2 glass-effect rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-xl font-bold text-white">Top Performing Videos</h3>
+                            <button onclick="showComingSoon()" class="text-blue-400 hover:text-blue-300 text-sm">
+                                View All
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center space-x-4 p-3 bg-slate-800 rounded-lg">
+                                <div class="w-16 h-12 bg-slate-700 rounded flex items-center justify-center">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-medium">Corporate Brand Video</h4>
+                                    <p class="text-slate-400 text-sm">Published 3 days ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-semibold">8,492 views</div>
+                                    <div class="text-green-400 text-sm">+24%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-4 p-3 bg-slate-800 rounded-lg">
+                                <div class="w-16 h-12 bg-slate-700 rounded flex items-center justify-center">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-medium">Product Launch Teaser</h4>
+                                    <p class="text-slate-400 text-sm">Published 1 week ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-semibold">6,231 views</div>
+                                    <div class="text-green-400 text-sm">+18%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-4 p-3 bg-slate-800 rounded-lg">
+                                <div class="w-16 h-12 bg-slate-700 rounded flex items-center justify-center">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-medium">Training Tutorial</h4>
+                                    <p class="text-slate-400 text-sm">Published 2 weeks ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-semibold">4,892 views</div>
+                                    <div class="text-green-400 text-sm">+12%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-4 p-3 bg-slate-800 rounded-lg">
+                                <div class="w-16 h-12 bg-slate-700 rounded flex items-center justify-center">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-medium">Social Media Ads</h4>
+                                    <p class="text-slate-400 text-sm">Published 3 weeks ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-semibold">3,156 views</div>
+                                    <div class="text-red-400 text-sm">-5%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-4 p-3 bg-slate-800 rounded-lg">
+                                <div class="w-16 h-12 bg-slate-700 rounded flex items-center justify-center">
+                                    <i class="fas fa-play text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-white font-medium">Event Highlight Reel</h4>
+                                    <p class="text-slate-400 text-sm">Published 1 month ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-semibold">2,891 views</div>
+                                    <div class="text-green-400 text-sm">+8%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Audience Demographics -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-xl font-bold text-white">Audience</h3>
+                            <button onclick="showComingSoon()" class="text-blue-400 hover:text-blue-300 text-sm">
+                                Insights
+                            </button>
+                        </div>
+                        
+                        <!-- Age Distribution -->
+                        <div class="mb-6">
+                            <h4 class="text-white font-medium mb-3">Age Groups</h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">18-24</span>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-20 bg-slate-700 rounded-full h-2">
+                                            <div class="bg-blue-500 h-2 rounded-full" style="width: 75%"></div>
+                                        </div>
+                                        <span class="text-white text-sm">32%</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">25-34</span>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-20 bg-slate-700 rounded-full h-2">
+                                            <div class="bg-green-500 h-2 rounded-full" style="width: 85%"></div>
+                                        </div>
+                                        <span class="text-white text-sm">28%</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">35-44</span>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-20 bg-slate-700 rounded-full h-2">
+                                            <div class="bg-purple-500 h-2 rounded-full" style="width: 60%"></div>
+                                        </div>
+                                        <span class="text-white text-sm">22%</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">45+</span>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-20 bg-slate-700 rounded-full h-2">
+                                            <div class="bg-cyan-500 h-2 rounded-full" style="width: 40%"></div>
+                                        </div>
+                                        <span class="text-white text-sm">18%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Gender Distribution -->
+                        <div class="mb-6">
+                            <h4 class="text-white font-medium mb-3">Gender</h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">Male</span>
+                                    <span class="text-white text-sm">58%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">Female</span>
+                                    <span class="text-white text-sm">42%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Top Locations -->
+                        <div>
+                            <h4 class="text-white font-medium mb-3">Top Locations</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">United States</span>
+                                    <span class="text-white text-sm">45%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">United Kingdom</span>
+                                    <span class="text-white text-sm">12%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">Canada</span>
+                                    <span class="text-white text-sm">8%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-slate-400 text-sm">Australia</span>
+                                    <span class="text-white text-sm">6%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Performance Insights -->
+        <section class="py-12 bg-gradient-to-br from-slate-900 to-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl font-bold text-white mb-4">Performance Insights</h2>
+                    <p class="text-xl text-slate-300">AI-powered recommendations to improve your video performance</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="glass-effect p-6 rounded-xl">
+                        <div class="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center mb-4">
+                            <i class="fas fa-lightbulb text-white text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-2">Optimal Video Length</h3>
+                        <p class="text-slate-400 text-sm mb-3">Your most engaging videos are between 2-3 minutes. Consider keeping future videos in this range.</p>
+                        <div class="text-green-400 text-sm font-medium">+15% engagement boost</div>
+                    </div>
+                    
+                    <div class="glass-effect p-6 rounded-xl">
+                        <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
+                            <i class="fas fa-clock text-white text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-2">Best Posting Time</h3>
+                        <p class="text-slate-400 text-sm mb-3">Your audience is most active between 2-4 PM on weekdays. Schedule posts during these peak hours.</p>
+                        <div class="text-blue-400 text-sm font-medium">+22% more views</div>
+                    </div>
+                    
+                    <div class="glass-effect p-6 rounded-xl">
+                        <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mb-4">
+                            <i class="fas fa-hashtag text-white text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-2">Trending Hashtags</h3>
+                        <p class="text-slate-400 text-sm mb-3">Include trending hashtags like #VideoMarketing and #AI to increase discoverability.</p>
+                        <div class="text-purple-400 text-sm font-medium">+18% reach increase</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="flex items-center justify-center space-x-3 mb-4">
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-white text-sm"></i>
+                    </div>
+                    <span class="text-xl font-bold text-white">VideoRobot AI</span>
+                </div>
+                <p class="text-slate-400 mb-4">
+                    Professional video creation powered by artificial intelligence
+                </p>
+                <p class="text-slate-500 text-sm">
+                    © 2024 VideoRobot AI. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+    
+    <script>
+        // Initialize charts and animations
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            setupEventListeners();
+            initializeAnimations();
+        });
+        
+        function initializeCharts() {
+            // Views Over Time Chart
+            const viewsChart = echarts.init(document.getElementById('views-chart'));
+            const viewsOption = {
+                backgroundColor: 'transparent',
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['Jan 1', 'Jan 3', 'Jan 5', 'Jan 7', 'Jan 9', 'Jan 11', 'Jan 13', 'Jan 15'],
+                    axisLine: { lineStyle: { color: '#475569' } },
+                    axisLabel: { color: '#94A3B8' }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLine: { lineStyle: { color: '#475569' } },
+                    axisLabel: { color: '#94A3B8' },
+                    splitLine: { lineStyle: { color: '#334155' } }
+                },
+                series: [{
+                    data: [1200, 1900, 3000, 5000, 7000, 8500, 12000, 15000],
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { color: '#3B82F6', width: 3 },
+                    itemStyle: { color: '#3B82F6' },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+                                { offset: 1, color: 'rgba(59, 130, 246, 0.05)' }
+                            ]
+                        }
+                    }
+                }],
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: '#1E293B',
+                    borderColor: '#475569',
+                    textStyle: { color: '#F1F5F9' }
+                }
+            };
+            viewsChart.setOption(viewsOption);
+            
+            // Engagement Chart
+            const engagementChart = echarts.init(document.getElementById('engagement-chart'));
+            const engagementOption = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: '#1E293B',
+                    borderColor: '#475569',
+                    textStyle: { color: '#F1F5F9' }
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    textStyle: { color: '#94A3B8' }
+                },
+                series: [{
+                    name: 'Engagement',
+                    type: 'pie',
+                    radius: '50%',
+                    data: [
+                        { value: 1048, name: 'Likes', itemStyle: { color: '#3B82F6' } },
+                        { value: 735, name: 'Comments', itemStyle: { color: '#10B981' } },
+                        { value: 580, name: 'Shares', itemStyle: { color: '#8B5CF6' } },
+                        { value: 484, name: 'Saves', itemStyle: { color: '#F59E0B' } }
+                    ],
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }]
+            };
+            engagementChart.setOption(engagementOption);
+            
+            // Make charts responsive
+            window.addEventListener('resize', function() {
+                viewsChart.resize();
+                engagementChart.resize();
+            });
+        }
+        
+        function setupEventListeners() {
+            // Filter buttons for charts
+            document.querySelectorAll('.filter-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Update chart data based on selected period
+                    const period = this.dataset.period;
+                    updateChartData(period);
+                });
+            });
+        }
+        
+        function updateChartData(period) {
+            // Simulate data update based on period
+            console.log(`Updating chart data for period: ${period}`);
+            // In a real application, this would fetch new data and update the charts
+        }
+        
+        function initializeAnimations() {
+            // Scroll reveal animation
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, observerOptions);
+            
+            document.querySelectorAll('.scroll-reveal').forEach(el => {
+                observer.observe(el);
+            });
+            
+            // Metric card animations
+            if (typeof anime !== 'undefined') {
+                anime({
+                    targets: '.metric-card',
+                    opacity: [0, 1],
+                    translateY: [30, 0],
+                    delay: anime.stagger(100),
+                    duration: 600,
+                    easing: 'easeOutExpo'
+                });
+            }
+        }
+        
+        function refreshData() {
+            // Simulate data refresh
+            const button = event.target;
+            button.classList.add('fa-spin');
+            
+            setTimeout(() => {
+                button.classList.remove('fa-spin');
+                showNotification('Data refreshed successfully!', 'success');
+            }, 2000);
+        }
+        
+        function exportReport() {
+            showNotification('Exporting analytics report...', 'info');
+            
+            // Simulate export process
+            setTimeout(() => {
+                showNotification('Report exported successfully!', 'success');
+            }, 3000);
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white z-50 ${
+                type === 'success' ? 'bg-green-600' : 
+                type === 'error' ? 'bg-red-600' : 
+                type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Animate in
+            if (typeof anime !== 'undefined') {
+                anime({
+                    targets: notification,
+                    translateX: [300, 0],
+                    opacity: [0, 1],
+                    easing: 'easeOutExpo',
+                    duration: 300
+                });
+            }
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: notification,
+                        translateX: [0, 300],
+                        opacity: [1, 0],
+                        easing: 'easeInExpo',
+                        duration: 300,
+                        complete: () => {
+                            document.body.removeChild(notification);
+                        }
+                    });
+                } else {
+                    document.body.removeChild(notification);
+                }
+            }, 3000);
+        }
+        
+        function showComingSoon() {
+            showNotification('Coming soon! This feature is under development.', 'info');
+        }
+    </script>
+</body>
+</html>

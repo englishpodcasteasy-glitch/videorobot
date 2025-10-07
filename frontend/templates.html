@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates - VideoRobot AI</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Core Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0B1220 0%, #1E293B 50%, #0F172A 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-effect {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 116, 139, 0.2);
+        }
+        
+        .template-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .template-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(37, 99, 235, 0.2);
+        }
+        
+        .template-card:hover .template-overlay {
+            opacity: 1;
+        }
+        
+        .template-overlay {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.9) 0%, rgba(6, 182, 212, 0.9) 100%);
+        }
+        
+        .category-filter {
+            transition: all 0.3s ease;
+        }
+        
+        .category-filter.active {
+            background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+            color: white;
+        }
+        
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease;
+        }
+        
+        .scroll-reveal.revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.4);
+        }
+        
+        .featured-template {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+            border: 1px solid rgba(37, 99, 235, 0.3);
+        }
+        
+        .template-preview {
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-white">VideoRobot AI</h1>
+                        <p class="text-xs text-slate-400">Professional Video Creation</p>
+                    </div>
+                </div>
+                
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="index.html" class="text-slate-300 hover:text-white transition-colors">Editor</a>
+                    <a href="templates.html" class="text-blue-400 hover:text-blue-300 font-medium transition-colors">Templates</a>
+                    <a href="projects.html" class="text-slate-300 hover:text-white transition-colors">Projects</a>
+                    <a href="analytics.html" class="text-slate-300 hover:text-white transition-colors">Analytics</a>
+                </div>
+                
+                <!-- User Actions -->
+                <div class="flex items-center space-x-4">
+                    <button class="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition-colors">
+                        <i class="fas fa-search text-sm"></i>
+                    </button>
+                    <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center cursor-pointer">
+                        <span class="text-white font-semibold text-sm">JD</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="pt-16">
+        <!-- Header Section -->
+        <section class="py-12 bg-gradient-to-br from-slate-900 to-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-8">
+                    <h1 class="text-4xl font-bold text-white mb-4">Professional Video Templates</h1>
+                    <p class="text-xl text-slate-300 max-w-2xl mx-auto">
+                        Choose from our curated collection of high-quality templates designed for every purpose
+                    </p>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="max-w-md mx-auto">
+                    <div class="relative">
+                        <input type="text" placeholder="Search templates..." class="w-full bg-slate-800 text-white px-4 py-3 pl-12 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Category Filters -->
+        <section class="py-8 bg-slate-900">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-center space-x-4 overflow-x-auto pb-4">
+                    <button class="category-filter active px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="all">
+                        All Templates
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="business">
+                        Business
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="social">
+                        Social Media
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="education">
+                        Education
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="marketing">
+                        Marketing
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="youtube">
+                        YouTube
+                    </button>
+                    <button class="category-filter px-6 py-2 rounded-full bg-slate-800 text-slate-300 whitespace-nowrap" data-category="presentation">
+                        Presentation
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Featured Templates -->
+        <section class="py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-white mb-2">Featured Templates</h2>
+                    <p class="text-slate-400">Hand-picked templates for professional results</p>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                    <!-- Featured Template 1 -->
+                    <div class="featured-template rounded-xl p-6 template-card" data-template="corporate-intro">
+                        <div class="flex items-start space-x-6">
+                            <div class="template-preview w-48 rounded-lg overflow-hidden flex-shrink-0">
+                                <img src="https://via.placeholder.com/192x108/1E293B/FFFFFF?text=Corporate+Intro" alt="Corporate Intro" class="w-full h-full object-cover">
+                                <div class="template-overlay absolute inset-0 flex items-center justify-center">
+                                    <button class="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-slate-100 transition-colors">
+                                        Use Template
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold text-white mb-2">Corporate Introduction</h3>
+                                <p class="text-slate-400 mb-4">Professional intro template perfect for business presentations and company overviews.</p>
+                                <div class="flex items-center space-x-4 text-sm text-slate-300">
+                                    <span><i class="fas fa-clock mr-1"></i> 15 seconds</span>
+                                    <span><i class="fas fa-layer-group mr-1"></i> 4 layers</span>
+                                    <span><i class="fas fa-star mr-1"></i> 4.9 (127)</span>
+                                </div>
+                                <div class="mt-4 flex items-center space-x-2">
+                                    <span class="px-2 py-1 bg-blue-600 text-xs rounded">Business</span>
+                                    <span class="px-2 py-1 bg-green-600 text-xs rounded">Professional</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Featured Template 2 -->
+                    <div class="featured-template rounded-xl p-6 template-card" data-template="social-promo">
+                        <div class="flex items-start space-x-6">
+                            <div class="template-preview w-48 rounded-lg overflow-hidden flex-shrink-0">
+                                <img src="https://via.placeholder.com/192x108/334155/FFFFFF?text=Social+Promo" alt="Social Promo" class="w-full h-full object-cover">
+                                <div class="template-overlay absolute inset-0 flex items-center justify-center">
+                                    <button class="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-slate-100 transition-colors">
+                                        Use Template
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold text-white mb-2">Social Media Promo</h3>
+                                <p class="text-slate-400 mb-4">Eye-catching promotional template designed for social media engagement and conversions.</p>
+                                <div class="flex items-center space-x-4 text-sm text-slate-300">
+                                    <span><i class="fas fa-clock mr-1"></i> 30 seconds</span>
+                                    <span><i class="fas fa-layer-group mr-1"></i> 6 layers</span>
+                                    <span><i class="fas fa-star mr-1"></i> 4.8 (89)</span>
+                                </div>
+                                <div class="mt-4 flex items-center space-x-2">
+                                    <span class="px-2 py-1 bg-purple-600 text-xs rounded">Social</span>
+                                    <span class="px-2 py-1 bg-pink-600 text-xs rounded">Marketing</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Template Gallery -->
+        <section class="py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-white mb-2">All Templates</h2>
+                    <p class="text-slate-400">Browse our complete collection of professional templates</p>
+                </div>
+                
+                <div id="template-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <!-- Templates will be populated by JavaScript -->
+                </div>
+            </div>
+        </section>
+        
+        <!-- Call to Action -->
+        <section class="py-16 bg-gradient-to-br from-blue-900 to-purple-900">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl font-bold text-white mb-4">Ready to Create Amazing Videos?</h2>
+                <p class="text-xl text-blue-100 mb-8">
+                    Join thousands of creators who trust VideoRobot AI for their video production needs
+                </p>
+                <div class="flex items-center justify-center space-x-4">
+                    <button onclick="showComingSoon()" class="btn-primary px-8 py-3 rounded-lg font-semibold flex items-center space-x-2">
+                        <i class="fas fa-rocket"></i>
+                        <span>Start Creating</span>
+                    </button>
+                    <button onclick="showComingSoon()" class="glass-effect px-8 py-3 rounded-lg font-semibold hover:bg-slate-700 transition-colors">
+                        View Pricing
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="flex items-center justify-center space-x-3 mb-4">
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-white text-sm"></i>
+                    </div>
+                    <span class="text-xl font-bold text-white">VideoRobot AI</span>
+                </div>
+                <p class="text-slate-400 mb-4">
+                    Professional video creation powered by artificial intelligence
+                </p>
+                <p class="text-slate-500 text-sm">
+                    © 2024 VideoRobot AI. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Template Preview Modal -->
+    <div id="template-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm">
+        <div class="glass-effect rounded-xl p-6 w-full max-w-4xl mx-4 max-h-screen overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 id="modal-title" class="text-2xl font-bold text-white">Template Preview</h3>
+                <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Preview -->
+                <div>
+                    <div id="modal-preview" class="aspect-video bg-slate-800 rounded-lg mb-4 flex items-center justify-center">
+                        <i class="fas fa-play-circle text-6xl text-slate-400"></i>
+                    </div>
+                    <div class="flex items-center justify-center space-x-4">
+                        <button class="w-12 h-12 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center transition-colors">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="w-12 h-12 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center justify-center transition-colors">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="w-12 h-12 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center justify-center transition-colors">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Details -->
+                <div>
+                    <div id="modal-description" class="text-slate-300 mb-6">
+                        Template description will appear here
+                    </div>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Duration:</span>
+                            <span id="modal-duration" class="text-white">--</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Layers:</span>
+                            <span id="modal-layers" class="text-white">--</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Rating:</span>
+                            <span id="modal-rating" class="text-white">--</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Category:</span>
+                            <span id="modal-category" class="text-white">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <button onclick="useTemplate()" class="w-full btn-primary px-6 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2">
+                            <i class="fas fa-magic"></i>
+                            <span>Use This Template</span>
+                        </button>
+                        <button onclick="showComingSoon()" class="w-full glass-effect px-6 py-3 rounded-lg font-semibold hover:bg-slate-700 transition-colors">
+                            Preview in Editor
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Template data
+        const templates = [
+            {
+                id: 'youtube-intro',
+                title: 'YouTube Channel Intro',
+                description: 'Dynamic intro template perfect for YouTube channels and content creators. Features bold typography and modern transitions.',
+                duration: '10 seconds',
+                layers: 5,
+                rating: '4.7 (156)',
+                category: 'YouTube',
+                tags: ['YouTube', 'Intro', 'Dynamic'],
+                featured: false
+            },
+            {
+                id: 'product-showcase',
+                title: 'Product Showcase',
+                description: 'Professional product showcase template with smooth animations and clean design. Perfect for e-commerce and marketing.',
+                duration: '25 seconds',
+                layers: 7,
+                rating: '4.8 (203)',
+                category: 'Marketing',
+                tags: ['Product', 'Marketing', 'Showcase'],
+                featured: false
+            },
+            {
+                id: 'educational-tutorial',
+                title: 'Educational Tutorial',
+                description: 'Clean and informative template designed for educational content and tutorials. Easy to follow with clear visual hierarchy.',
+                duration: '45 seconds',
+                layers: 4,
+                rating: '4.6 (89)',
+                category: 'Education',
+                tags: ['Education', 'Tutorial', 'Clean'],
+                featured: false
+            },
+            {
+                id: 'social-story',
+                title: 'Social Media Story',
+                description: 'Vertical template optimized for Instagram Stories and TikTok. Eye-catching design with modern elements.',
+                duration: '15 seconds',
+                layers: 6,
+                rating: '4.9 (134)',
+                category: 'Social',
+                tags: ['Social', 'Story', 'Vertical'],
+                featured: false
+            },
+            {
+                id: 'business-presentation',
+                title: 'Business Presentation',
+                description: 'Professional presentation template with clean layouts and corporate styling. Perfect for business meetings and pitches.',
+                duration: '60 seconds',
+                layers: 8,
+                rating: '4.7 (178)',
+                category: 'Business',
+                tags: ['Business', 'Presentation', 'Corporate'],
+                featured: false
+            },
+            {
+                id: 'event-promo',
+                title: 'Event Promotion',
+                description: 'Energetic promotional template for events and announcements. Features dynamic animations and engaging visuals.',
+                duration: '20 seconds',
+                layers: 6,
+                rating: '4.8 (92)',
+                category: 'Marketing',
+                tags: ['Event', 'Promotion', 'Energetic'],
+                featured: false
+            },
+            {
+                id: 'travel-vlog',
+                title: 'Travel Vlog Intro',
+                description: 'Adventure-themed template perfect for travel vlogs and lifestyle content. Features cinematic transitions and wanderlust vibes.',
+                duration: '12 seconds',
+                layers: 5,
+                rating: '4.6 (145)',
+                category: 'YouTube',
+                tags: ['Travel', 'Vlog', 'Adventure'],
+                featured: false
+            },
+            {
+                id: 'tech-review',
+                title: 'Tech Review',
+                description: 'Modern template designed for technology reviews and unboxings. Clean, professional, and feature-focused.',
+                duration: '30 seconds',
+                layers: 7,
+                rating: '4.7 (167)',
+                category: 'YouTube',
+                tags: ['Tech', 'Review', 'Modern'],
+                featured: false
+            },
+            {
+                id: 'wedding-slideshow',
+                title: 'Wedding Slideshow',
+                description: 'Romantic and elegant template for wedding slideshows and anniversary videos. Features soft transitions and beautiful typography.',
+                duration: '90 seconds',
+                layers: 4,
+                rating: '4.9 (78)',
+                category: 'Presentation',
+                tags: ['Wedding', 'Romantic', 'Elegant'],
+                featured: false
+            },
+            {
+                id: 'fitness-workout',
+                title: 'Fitness Workout',
+                description: 'High-energy template for fitness content and workout videos. Motivational design with dynamic animations.',
+                duration: '35 seconds',
+                layers: 6,
+                rating: '4.8 (112)',
+                category: 'Social',
+                tags: ['Fitness', 'Workout', 'Energy'],
+                featured: false
+            },
+            {
+                id: 'cooking-show',
+                title: 'Cooking Show',
+                description: 'Warm and inviting template for cooking shows and recipe videos. Features food-focused design elements.',
+                duration: '40 seconds',
+                layers: 5,
+                rating: '4.6 (94)',
+                category: 'YouTube',
+                tags: ['Cooking', 'Food', 'Warm'],
+                featured: false
+            },
+            {
+                id: 'startup-pitch',
+                title: 'Startup Pitch',
+                description: 'Innovative template designed for startup pitches and investor presentations. Modern, clean, and professional.',
+                duration: '50 seconds',
+                layers: 8,
+                rating: '4.7 (156)',
+                category: 'Business',
+                tags: ['Startup', 'Pitch', 'Innovation'],
+                featured: false
+            }
+        ];
+        
+        let currentCategory = 'all';
+        let currentTemplate = null;
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            renderTemplates();
+            setupEventListeners();
+            initializeAnimations();
+        });
+        
+        function renderTemplates() {
+            const grid = document.getElementById('template-grid');
+            const filteredTemplates = currentCategory === 'all' 
+                ? templates 
+                : templates.filter(t => t.category.toLowerCase() === currentCategory);
+            
+            grid.innerHTML = filteredTemplates.map(template => `
+                <div class="template-card glass-effect rounded-xl overflow-hidden" data-template="${template.id}" onclick="openTemplateModal('${template.id}')">
+                    <div class="template-preview relative">
+                        <img src="https://via.placeholder.com/400x225/1E293B/FFFFFF?text=${encodeURIComponent(template.title)}" alt="${template.title}" class="w-full h-full object-cover">
+                        <div class="template-overlay absolute inset-0 flex items-center justify-center">
+                            <div class="text-center">
+                                <i class="fas fa-play-circle text-4xl text-white mb-2"></i>
+                                <p class="text-white font-semibold">Preview</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="text-lg font-semibold text-white mb-2">${template.title}</h3>
+                        <p class="text-slate-400 text-sm mb-3 line-clamp-2">${template.description}</p>
+                        <div class="flex items-center justify-between text-sm text-slate-300">
+                            <span><i class="fas fa-clock mr-1"></i> ${template.duration}</span>
+                            <span><i class="fas fa-star mr-1 text-yellow-400"></i> ${template.rating}</span>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1">
+                            ${template.tags.map(tag => `<span class="px-2 py-1 bg-slate-700 text-xs rounded">${tag}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function setupEventListeners() {
+            // Category filters
+            document.querySelectorAll('.category-filter').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.querySelectorAll('.category-filter').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentCategory = this.dataset.category;
+                    renderTemplates();
+                });
+            });
+            
+            // Search functionality
+            const searchInput = document.querySelector('input[placeholder="Search templates..."]');
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const cards = document.querySelectorAll('.template-card');
+                
+                cards.forEach(card => {
+                    const title = card.querySelector('h3').textContent.toLowerCase();
+                    const description = card.querySelector('p').textContent.toLowerCase();
+                    
+                    if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        function initializeAnimations() {
+            // Scroll reveal animation
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, observerOptions);
+            
+            document.querySelectorAll('.scroll-reveal').forEach(el => {
+                observer.observe(el);
+            });
+            
+            // Template card animations
+            if (typeof anime !== 'undefined') {
+                anime({
+                    targets: '.template-card',
+                    opacity: [0, 1],
+                    translateY: [30, 0],
+                    delay: anime.stagger(100),
+                    duration: 600,
+                    easing: 'easeOutExpo'
+                });
+            }
+        }
+        
+        function openTemplateModal(templateId) {
+            const template = templates.find(t => t.id === templateId);
+            if (!template) return;
+            
+            currentTemplate = template;
+            
+            // Populate modal
+            document.getElementById('modal-title').textContent = template.title;
+            document.getElementById('modal-description').textContent = template.description;
+            document.getElementById('modal-duration').textContent = template.duration;
+            document.getElementById('modal-layers').textContent = template.layers;
+            document.getElementById('modal-rating').textContent = template.rating;
+            document.getElementById('modal-category').textContent = template.category;
+            
+            // Show modal
+            document.getElementById('template-modal').classList.remove('hidden');
+            document.getElementById('template-modal').classList.add('flex');
+        }
+        
+        function closeTemplateModal() {
+            document.getElementById('template-modal').classList.add('hidden');
+            document.getElementById('template-modal').classList.remove('flex');
+            currentTemplate = null;
+        }
+        
+        function useTemplate() {
+            if (currentTemplate) {
+                // Redirect to editor with template
+                window.location.href = `index.html?template=${currentTemplate.id}`;
+            }
+        }
+        
+        function showComingSoon() {
+            alert('Coming soon! This feature is under development.');
+        }
+    </script>
+</body>
+</html>
