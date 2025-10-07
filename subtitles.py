@@ -35,8 +35,8 @@ class ColorConverter:
         
         h = hex_rgb.strip().lstrip("#")
         
-        # Use a raw string for the "#" character to be safe
-        if not cls._HEX_PATTERN.match(r"#" + h):
+        # Validate "#"+h
+        if not cls._HEX_PATTERN.match("#" + h):
             return "FFFFFF"
         
         rr, gg, bb = h[0:2], h[2:4], h[4:6]
@@ -113,19 +113,19 @@ class TextSanitizer:
     
     @staticmethod
     def for_ass(text: Any) -> str:
-        """
+        r"""
         Prepares text for ASS format
         - Removes control characters
         - Escapes {} and \ which have special meaning in ASS
         """
         s = str(text)
         
-        # Remove control characters (except \N which is a newline in ASS)
+        # Remove control characters (except \\N which is a newline in ASS)
         s = re.sub(r"[\x00-\x08\x0B-\x1F\x7F]", "", s)
         
         # Escape special characters
-        # FIX: Use a raw string r"\" to represent a single backslash
-        s = s.replace(r"\", "⧵")  # Backslash
+        # FIX: escape a single backslash in a Python string literal with "\\"
+        s = s.replace("\\", "⧵")  # Backslash
         s = s.replace("{", "(")   # Open brace
         s = s.replace("}", ")")   # Close brace
         
@@ -133,7 +133,7 @@ class TextSanitizer:
     
     @staticmethod
     def for_plain(text: Any) -> str:
-        """
+        r"""
         Simple sanitization for SRT/VTT
         - Removes \r and \t
         - Collapses whitespace
