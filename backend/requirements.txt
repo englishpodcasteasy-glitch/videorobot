@@ -1,0 +1,6 @@
+flask
+flask-cors
+ffmpeg-python
+faster-whisper
+ctranslate2
+yake
