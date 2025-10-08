@@ -1,0 +1,21 @@
+{
+  "seed": 7,
+  "video": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "bg_color": "#101318"
+  },
+  "tracks": [
+    {
+      "type": "text",
+      "content": "VideoRobot Quick Start",
+      "start": 0.2,
+      "duration": 4,
+      "x": 64,
+      "y": 120,
+      "size": 72,
+      "color": "#FFFFFF"
+    }
+  ]
+}

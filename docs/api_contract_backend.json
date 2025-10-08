@@ -1,0 +1,11 @@
+[
+  {"method": "GET", "path": "/health", "file": "backend/main.py"},
+  {"method": "GET", "path": "/healthz", "file": "backend/main.py"},
+  {"method": "GET", "path": "/version", "file": "backend/main.py"},
+  {"method": "GET", "path": "/list-files", "file": "backend/main.py"},
+  {"method": "POST", "path": "/transcribe", "file": "backend/main.py"},
+  {"method": "POST", "path": "/render", "file": "backend/renderer_service.py"},
+  {"method": "GET", "path": "/progress/<job_id>", "file": "backend/renderer_service.py"},
+  {"method": "GET", "path": "/status", "file": "backend/renderer_service.py"},
+  {"method": "GET", "path": "/download", "file": "backend/renderer_service.py"}
+]

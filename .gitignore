@@ -35,3 +35,11 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+# Environment files
+.env
+.env.*
+outputs/
+/.ruff_cache/
+/.mypy_cache/
+/.pytest_cache/
+/.venv/
