@@ -23,8 +23,8 @@ from flask_cors import CORS
 
 # بخش داخلی
 from .config import Paths, ProjectCfg, AudioCfg, CaptionCfg, FigureCfg, IntroOutroCfg, CTACfg, BGMCfg, BrollCfg, VisualCfg, ShortsCfg, Aspect, CaptionPosition, ShortsMode, FONTS
-from utils import docs_guard, mount_drive_once, resolve_drive_base
-from renderer_service import renderer_bp, RendererQueue
+from .utils import docs_guard, mount_drive_once, resolve_drive_base
+from .renderer_service import renderer_bp, RendererQueue
 
 # تنظیمات لوگ
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
