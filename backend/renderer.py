@@ -6,131 +6,22 @@ import json
 import logging
 import math
 import random
-from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+import moviepy.editor as mpe
+from moviepy.audio.fx import all as afx
+from moviepy.video.fx import all as vfx
 from PIL import Image, ImageDraw, ImageFont
 
-try:  # pragma: no cover - import guard for optional dependency resolution
-    import moviepy  # type: ignore
-except ModuleNotFoundError as exc:  # pragma: no cover - handled at runtime
-    moviepy = None  # type: ignore[assignment]
-    afx = None  # type: ignore[assignment]
-    vfx = None  # type: ignore[assignment]
-    _MOVIEPY_IMPORT_ERROR = exc
-    _MOVIEPY_VERSION = None
-    _MOVIEPY_V2 = False
-else:
-    _MOVIEPY_IMPORT_ERROR = None
-    _MOVIEPY_VERSION = getattr(moviepy, "__version__", "0.0.0")
-
-    def _parse_version(text: str) -> Tuple[int, int, int]:
-        parts: List[int] = []
-        for chunk in text.split("."):
-            digits = ""
-            for char in chunk:
-                if char.isdigit():
-                    digits += char
-                else:
-                    break
-            if digits:
-                parts.append(int(digits))
-            if len(parts) >= 3:
-                break
-        while len(parts) < 3:
-            parts.append(0)
-        return parts[0], parts[1], parts[2]
-
-    _MOVIEPY_V2 = _parse_version(_MOVIEPY_VERSION)[0] >= 2
-
-    def _import_first(paths: Sequence[str], *, optional: bool = False) -> Any:
-        for dotted in paths:
-            try:
-                module_name, attr_name = dotted.rsplit(".", 1)
-            except ValueError:
-                continue
-            try:
-                module = import_module(module_name)
-                return getattr(module, attr_name)
-            except (ImportError, AttributeError):
-                continue
-        if optional:
-            return None
-        raise ImportError(f"Unable to import any of: {', '.join(paths)}")
-
-    if _MOVIEPY_V2:
-        from moviepy import (  # type: ignore
-            AudioFileClip,
-            VideoFileClip,
-            ImageClip,
-            ColorClip,
-            CompositeVideoClip,
-            concatenate_videoclips,
-        )
-        from moviepy.audio import fx as afx  # type: ignore
-        from moviepy.video import fx as vfx  # type: ignore
-
-        CompositeAudioClip = _import_first(  # type: ignore[assignment]
-            [
-                "moviepy.CompositeAudioClip",
-                "moviepy.audio.CompositeAudioClip",
-                "moviepy.audio.AudioClip.CompositeAudioClip",
-            ]
-        )
-        VideoClipCls = _import_first(
-            [
-                "moviepy.VideoClip",
-                "moviepy.video.VideoClip.VideoClip",
-            ],
-            optional=True,
-        )
-        AudioClipCls = _import_first(
-            [
-                "moviepy.AudioClip",
-                "moviepy.audio.AudioClip.AudioClip",
-            ],
-            optional=True,
-        )
-    else:
-        import moviepy.editor as mpe  # type: ignore
-        from moviepy.audio.fx import all as afx  # type: ignore
-        from moviepy.video.fx import all as vfx  # type: ignore
-
-        AudioFileClip = mpe.AudioFileClip  # type: ignore[attr-defined]
-        VideoFileClip = mpe.VideoFileClip  # type: ignore[attr-defined]
-        ImageClip = mpe.ImageClip  # type: ignore[attr-defined]
-        ColorClip = mpe.ColorClip  # type: ignore[attr-defined]
-        CompositeVideoClip = mpe.CompositeVideoClip  # type: ignore[attr-defined]
-        CompositeAudioClip = mpe.CompositeAudioClip  # type: ignore[attr-defined]
-        concatenate_videoclips = mpe.concatenate_videoclips  # type: ignore[attr-defined]
-        VideoClipCls = getattr(mpe, "VideoClip", None)
-        AudioClipCls = getattr(mpe, "AudioClip", None)
-
-
-MoviePyVideoClip = Any
-MoviePyAudioClip = Any
-if "VideoClipCls" in locals() and VideoClipCls is not None:
-    MoviePyVideoClip = VideoClipCls  # type: ignore[assignment]
-if "AudioClipCls" in locals() and AudioClipCls is not None:
-    MoviePyAudioClip = AudioClipCls  # type: ignore[assignment]
-
 from .utils import sha256_of_paths
-
-
-__all__ = ["VideoComposer", "Renderer"]
 
 
 class VideoComposer:
     """Compose MP4 videos deterministically from a manifest definition."""
 
     def __init__(self) -> None:
-        if _MOVIEPY_IMPORT_ERROR is not None:
-            raise RuntimeError(
-                "MoviePy is not installed. Run 'pip install -r backend/requirements.txt' "
-                "or install moviepy>=1.0.3 to enable the renderer."
-            ) from _MOVIEPY_IMPORT_ERROR
         self._log = logging.getLogger("VideoRobot.VideoComposer")
         self._last_duration_ms: Optional[int] = None
         self._last_inputs_sha256: Optional[str] = None
@@ -173,7 +64,7 @@ class VideoComposer:
 
         _, tracks, _ = self.prepare_manifest(manifest, work_dir)
 
-        visual_layers: List[MoviePyVideoClip] = []
+        visual_layers: List[mpe.VideoClip] = []
         audio_specs: List[Dict[str, Any]] = []
         resources: List[Any] = []
         resource_ids: set[int] = set()
@@ -219,7 +110,7 @@ class VideoComposer:
             if total_duration <= 0:
                 total_duration = 1.0
 
-            audio_layers: List[MoviePyAudioClip] = []
+            audio_layers: List[mpe.AudioClip] = []
             for track in audio_specs:
                 clip, clip_duration = self._build_audio_clip(track, total_duration, remember)
                 start = float(track.get("start", 0.0) or 0.0)
@@ -228,16 +119,16 @@ class VideoComposer:
                 total_duration = max(total_duration, start + clip_duration)
 
             base_clip = remember(
-                ColorClip(size=(width, height), color=bg_color).set_duration(total_duration)
+                mpe.ColorClip(size=(width, height), color=bg_color).set_duration(total_duration)
             )
             visual_layers.insert(0, base_clip)
 
             final_clip = remember(
-                CompositeVideoClip(visual_layers, size=(width, height)).set_duration(total_duration)
+                mpe.CompositeVideoClip(visual_layers, size=(width, height)).set_duration(total_duration)
             )
 
             if audio_layers:
-                audio_mix = remember(CompositeAudioClip(audio_layers))
+                audio_mix = remember(mpe.CompositeAudioClip(audio_layers))
                 final_clip = remember(final_clip.set_audio(audio_mix))
 
             output_path = work_dir / "final.mp4"
@@ -311,12 +202,12 @@ class VideoComposer:
         width: int,
         height: int,
         remember,
-    ) -> Tuple[MoviePyVideoClip, float]:
+    ) -> Tuple[mpe.VideoClip, float]:
         src = track.get("src")
         if not src:
             raise ValueError("video track missing src")
 
-        clip = remember(VideoFileClip(str(self._resolve_path(src))))
+        clip = remember(mpe.VideoFileClip(str(self._resolve_path(src))))
 
         trim_start = float(track.get("trim_start", 0.0) or 0.0)
         trim_end = float(track.get("trim_end", 0.0) or 0.0)
@@ -339,12 +230,12 @@ class VideoComposer:
         clip = remember(clip.set_position(self._position(track)))
         return clip, clip_duration
 
-    def _build_image_clip(self, track: Dict[str, Any], remember) -> Tuple[MoviePyVideoClip, float]:
+    def _build_image_clip(self, track: Dict[str, Any], remember) -> Tuple[mpe.VideoClip, float]:
         src = track.get("src")
         if not src:
             raise ValueError("image track missing src")
 
-        clip = remember(ImageClip(str(self._resolve_path(src))))
+        clip = remember(mpe.ImageClip(str(self._resolve_path(src))))
         scale = track.get("scale")
         if scale not in (None, ""):
             clip = remember(clip.resize(float(scale)))
@@ -355,13 +246,13 @@ class VideoComposer:
         clip = remember(clip.set_position(self._position(track)))
         return clip, clip_duration
 
-    def _build_text_clip(self, track: Dict[str, Any], remember) -> Tuple[MoviePyVideoClip, float]:
+    def _build_text_clip(self, track: Dict[str, Any], remember) -> Tuple[mpe.VideoClip, float]:
         content = str(track.get("content", "")).strip()
         if not content:
             raise ValueError("text track missing content")
 
         array = self._render_text_image(track, content)
-        clip = remember(ImageClip(array))
+        clip = remember(mpe.ImageClip(array))
         clip_duration = float(track.get("duration", max(2.0, len(content) * 0.08)) or 2.0)
         clip_duration = max(0.5, clip_duration)
         clip = remember(clip.set_duration(clip_duration))
@@ -373,12 +264,12 @@ class VideoComposer:
         track: Dict[str, Any],
         base_duration: float,
         remember,
-    ) -> Tuple[MoviePyAudioClip, float]:
+    ) -> Tuple[mpe.AudioClip, float]:
         src = track.get("src")
         if not src:
             raise ValueError("audio track missing src")
 
-        clip = remember(AudioFileClip(str(self._resolve_path(src))))
+        clip = remember(mpe.AudioFileClip(str(self._resolve_path(src))))
         target_duration = track.get("duration")
         if target_duration in (None, ""):
             target_duration = base_duration if base_duration > 0 else clip.duration
@@ -438,9 +329,7 @@ class VideoComposer:
         (work_dir / "inputs.sha256").write_text(digest, encoding="utf-8")
         return digest
 
-    def _fit_clip(
-        self, clip: MoviePyVideoClip, width: int, height: int, mode: str
-    ) -> MoviePyVideoClip:
+    def _fit_clip(self, clip: mpe.VideoClip, width: int, height: int, mode: str) -> mpe.VideoClip:
         w, h = clip.size
         if not w or not h:
             return clip.resize((width, height))
@@ -552,7 +441,3 @@ class VideoComposer:
         if isinstance(data, list):
             return [self._canonicalize(item) for item in data]
         return data
-
-
-# Historical alias expected by external callers (e.g. Streamlit UI, legacy imports)
-Renderer = VideoComposer

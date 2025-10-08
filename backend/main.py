@@ -22,32 +22,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # بخش داخلی
-if __name__ == "__main__" and __package__ is None:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    __package__ = "backend"
-
-from . import __version__ as BACKEND_VERSION
-from .config import (
-    Paths,
-    ProjectCfg,
-    AudioCfg,
-    CaptionCfg,
-    FigureCfg,
-    IntroOutroCfg,
-    CTACfg,
-    BGMCfg,
-    BrollCfg,
-    VisualCfg,
-    ShortsCfg,
-    Aspect,
-    CaptionPosition,
-    ShortsMode,
-    FONTS,
-)
-from .scheduler import Scheduler
+from .config import Paths, ProjectCfg, AudioCfg, CaptionCfg, FigureCfg, IntroOutroCfg, CTACfg, BGMCfg, BrollCfg, VisualCfg, ShortsCfg, Aspect, CaptionPosition, ShortsMode, FONTS
 from .utils import docs_guard, mount_drive_once, resolve_drive_base
 from .renderer_service import renderer_bp, RendererQueue
 
@@ -294,9 +269,8 @@ def healthz() -> Any:
 
 @app.get("/version")
 def version_info() -> Any:
-    version = os.getenv("VR_VERSION") or BACKEND_VERSION
     data = {
-        "version": version,
+        "version": os.getenv("VR_VERSION", "0.0.0"),
         "git": os.getenv("GIT_COMMIT", "unknown"),
     }
     return _response_ok(data)

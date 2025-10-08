@@ -13,10 +13,11 @@ from typing import Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request, send_file
 from jsonschema import Draft7Validator
+from moviepy import editor as mpe
 
 from .config import Paths
-from .renderer import VideoComposer
-from .utils import ensure_outputs_dir, install_ffmpeg_if_needed
+from renderer import VideoComposer
+from utils import ensure_outputs_dir, install_ffmpeg_if_needed
 
 log = logging.getLogger("VideoRobot.renderer_service")
 
@@ -156,9 +157,7 @@ class RendererQueue:
             self._update_job(job_id, pct=70, message="encoding complete")
             duration_ms = composer.last_duration_ms
             if duration_ms is None:
-                from moviepy.editor import VideoFileClip  # type: ignore
-
-                probe = VideoFileClip(str(result_path))
+                probe = mpe.VideoFileClip(str(result_path))
                 duration_ms = int(probe.duration * 1000)
                 probe.close()
             duration_ms = int(duration_ms)
@@ -280,8 +279,6 @@ def render_route():
         )
     except FileNotFoundError as exc:
         return _err(str(exc), 400)
-    except RuntimeError as exc:
-        return _err(str(exc), 500)
 
     return _ok(info)
 
