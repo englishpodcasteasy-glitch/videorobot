@@ -6,7 +6,6 @@ import os
 import sys
 import shutil
 import subprocess
-import time
 from pathlib import Path
 import inspect as _inspect
 import streamlit as st
@@ -123,6 +122,32 @@ def make_caption_cfg(**kw):
     clean = {k: v for k, v in kw.items() if k in allowed}
     return CaptionCfg(**clean)
 
+# ---------- FigureCfg compatibility shim ----------
+def make_figure_cfg(**kw):
+    """
+    Provide safe defaults for FigureCfg across versions.
+    Many codebases require: use, duration_s, appear_after_s, hold_s, fade_s.
+    """
+    if FigureCfg is None:
+        return None  # If project allows figures=None, that's fine
+
+    sig = _inspect.signature(FigureCfg)
+    allowed = set(sig.parameters.keys())
+
+    defaults = dict(
+        use=False,
+        duration_s=0.0,
+        appear_after_s=0.0,
+        hold_s=0.0,
+        fade_s=0.2,
+    )
+    for k, v in defaults.items():
+        if k in allowed and k not in kw:
+            kw[k] = v
+
+    clean = {k: v for k, v in kw.items() if k in allowed}
+    return FigureCfg(**clean)
+
 # ---------- UI ----------
 st.set_page_config(page_title="VideoRobot", layout="wide")
 st.title("🤖 VideoRobot: رابط رندر")
@@ -207,7 +232,7 @@ def run_render():
         config = ProjectCfg(
             audio=AudioCfg(filename=audio_file, whisper_model=whisper_model, use_vad=use_vad),
             captions=captions,
-            figures=FigureCfg(use=False) if FigureCfg else None,
+            figures=make_figure_cfg(use=False) if FigureCfg else None,
             intro_outro=IntroOutroCfg(
                 intro_mp4=None if intro_file == "(ندارم)" else intro_file,
                 outro_mp4=None if outro_file == "(ندارم)" else outro_file
