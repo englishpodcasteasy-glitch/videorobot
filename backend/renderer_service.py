@@ -15,7 +15,7 @@ from flask import Blueprint, jsonify, request, send_file
 from jsonschema import Draft7Validator
 from moviepy import editor as mpe
 
-from config import Paths
+from .config import Paths
 from renderer import VideoComposer
 from utils import ensure_outputs_dir, install_ffmpeg_if_needed
 
