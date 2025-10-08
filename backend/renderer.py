@@ -486,3 +486,8 @@ class VideoComposer:
         if isinstance(data, list):
             return [self._canonicalize(item) for item in data]
         return data
+        # --- keep existing code above ---
+
+# Back-compat alias so imports like `from backend.renderer import Renderer` work
+Renderer = VideoComposer
+
