@@ -1,0 +1,14 @@
+{
+  "missing_in_backend": [],
+  "unused_in_frontend": [
+    {"method": "GET", "path": "/health"},
+    {"method": "GET", "path": "/healthz"},
+    {"method": "GET", "path": "/version"},
+    {"method": "GET", "path": "/list-files"},
+    {"method": "POST", "path": "/transcribe"},
+    {"method": "POST", "path": "/render"},
+    {"method": "GET", "path": "/progress/<job_id>"},
+    {"method": "GET", "path": "/status"},
+    {"method": "GET", "path": "/download"}
+  ]
+}

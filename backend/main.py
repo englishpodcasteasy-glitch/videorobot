@@ -12,23 +12,20 @@ Flask REST API:
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import shutil
-import threading
-import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, List
 
-from flask import Flask, request, jsonify, send_from_directory, abort
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # بخش داخلی
 from config import Paths, ProjectCfg, AudioCfg, CaptionCfg, FigureCfg, IntroOutroCfg, CTACfg, BGMCfg, BrollCfg, VisualCfg, ShortsCfg, Aspect, CaptionPosition, ShortsMode, FONTS
-from renderer import Renderer
 from scheduler import Scheduler
 from utils import docs_guard, mount_drive_once, resolve_drive_base
+from renderer_service import renderer_bp, RendererQueue
 
 # تنظیمات لوگ
 LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
@@ -223,72 +220,79 @@ def _build_config_from_json(data: Dict[str, Any]) -> Tuple[ProjectCfg, List[str]
         raise ValueError(f"تنظیمات نامعتبر: {e}") from e
     return cfg, used_sources
 
-# ============ مدیریت Job Queue ============
-
-JOBS_LOCK = threading.Lock()
-JOBS: Dict[str, Dict[str, Any]] = {}
-
-def _cleanup_old_jobs(max_jobs: int = 100) -> None:
-    with JOBS_LOCK:
-        if len(JOBS) <= max_jobs:
-            return
-        to_remove = list(JOBS.keys())[: len(JOBS) - max_jobs]
-        for k in to_remove:
-            JOBS.pop(k, None)
-
-def _update_job(job_id: str, **fields: Any) -> None:
-    with JOBS_LOCK:
-        job = JOBS.setdefault(job_id, {"status": "queued", "progress": {"percentage": 0, "message": ""}})
-        job.update(fields)
-
-def _get_job_status(job_id: str) -> Dict[str, Any]:
-    with JOBS_LOCK:
-        return dict(JOBS.get(job_id, {}))
-
-def _render_worker(job_id: str, preset_json: Dict[str, Any]) -> None:
-    try:
-        _update_job(job_id, status="running", progress={"percentage": 5, "message": "آماده‌سازی..."})
-        config, _sources = _build_config_from_json(preset_json)
-        _update_job(job_id, progress={"percentage": 30, "message": "شروع رندر..."})
-        renderer = Renderer(PATHS)
-        output_file, norm_audio, filter_count, srt_path = renderer.render(config)
-        video_name = Path(output_file).name
-        video_url = f"/download?file={video_name}"
-        _update_job(job_id, status="done", progress={"percentage": 100, "message": "اتمام"}, videoUrl=video_url)
-    except Exception as e:
-        log.exception("خطا در job رندر: %s", e)
-        _update_job(job_id, status="error", error=str(e), progress={"percentage": 0, "message": "خطا رخ داد"})
-    finally:
-        _cleanup_old_jobs()
+renderer_queue = RendererQueue(paths=PATHS)
 
 # ============ Flask App ============
 
 app = Flask(__name__, static_folder="../frontend_dist", static_url_path="/")
-CORS(app)
+
+
+def _resolve_allowed_origins() -> List[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGIN", "")
+    origins = {o.strip() for o in raw.split(",") if o.strip()}
+    tunnel = os.getenv("CF_TUNNEL_HOSTNAME", "").strip()
+    if tunnel:
+        if tunnel.startswith("http://") or tunnel.startswith("https://"):
+            origins.add(tunnel)
+        else:
+            origins.add(f"https://{tunnel}")
+    if not origins:
+        origins.update({"http://127.0.0.1:5173", "http://localhost:5173"})
+    return sorted(origins)
+
+
+CORS(app, resources={r"/*": {"origins": _resolve_allowed_origins()}})
+app.register_blueprint(renderer_bp)
+
+
+def _response_ok(data: Any, status_code: int = 200):
+    payload = {"ok": True, "data": data, "error": None}
+    return jsonify(payload), status_code
+
+
+def _response_error(message: str, status_code: int):
+    payload = {"ok": False, "data": None, "error": message}
+    return jsonify(payload), status_code
 
 @app.get("/health")
 def health_check() -> Any:
-    return jsonify({"ok": True, "assets": str(PATHS.assets), "output_local": str(PATHS.out_local)}), 200
+    data = {
+        "assets": str(PATHS.assets),
+        "output_local": str(PATHS.out_local),
+    }
+    return _response_ok(data)
+
+
+@app.get("/healthz")
+def healthz() -> Any:
+    return health_check()
+
+
+@app.get("/version")
+def version_info() -> Any:
+    data = {
+        "version": os.getenv("VR_VERSION", "0.0.0"),
+        "git": os.getenv("GIT_COMMIT", "unknown"),
+    }
+    return _response_ok(data)
 
 @app.get("/list-files")
 def list_files_api() -> Any:
     path_str = (request.args.get("path") or "").strip()
     if not path_str:
-        return jsonify({"error": "پارامتر path الزامی است"}), 400
+        return _response_error("پارامتر path الزامی است", 400)
     directory = Path(path_str).expanduser()
     if not directory.exists() or not directory.is_dir():
-        return jsonify({"error": "PATH_NOT_FOUND_OR_NOT_DIR"}), 404
+        return _response_error("PATH_NOT_FOUND_OR_NOT_DIR", 404)
     # بررسی امنیت
     allowed_roots = [PATHS.assets, PATHS.out_local]
     if PATHS.base_drive:
         allowed_roots.append(PATHS.base_drive)
-    def under_root(p: Path) -> bool:
-        try:
-            return p.resolve().is_relative_to(root.resolve())
-        except Exception:
-            rp = str(p.resolve())
-            rr = str(root.resolve())
-            return rp == rr or rp.startswith(rr + os.sep)
+
+    def under_root(p: Path, root: Path) -> bool:
+        resolved_root = root.resolve()
+        resolved_path = p.resolve()
+        return resolved_path == resolved_root or resolved_root in resolved_path.parents
     items = []
     for ch in sorted(directory.iterdir(), key=lambda x: x.name.lower()):
         if any(under_root(ch, root) for root in allowed_roots):
@@ -299,7 +303,7 @@ def list_files_api() -> Any:
                 "size": 0 if ch.is_dir() else st.st_size,
                 "mtime": int(st.st_mtime),
             })
-    return jsonify(items), 200
+    return _response_ok({"items": items})
 
 @app.post("/transcribe")
 def transcribe_api() -> Any:
@@ -307,59 +311,24 @@ def transcribe_api() -> Any:
         data = request.get_json(force=True)
         audio_paths = data.get("audioPaths") or []
         if not isinstance(audio_paths, list) or not audio_paths:
-            return jsonify({"error": "audioPaths باید آرایه غیرخالی باشد"}), 400
+            return _response_error("audioPaths باید آرایه غیرخالی باشد", 400)
         first = str(audio_paths[0]).strip()
         if not first:
-            return jsonify({"error": "مسیر صوتی خالی است"}), 400
+            return _response_error("مسیر صوتی خالی است", 400)
         basename = _copy_file_to_assets(first)
         scheduler = Scheduler()
         words = scheduler.transcribe_words(PATHS.assets / basename, size=str(data.get("model", "medium")), use_vad=bool(data.get("useVad", True)))
         transcript = " ".join(w.get("raw", "") for w in words).strip()
-        return jsonify({"transcript": transcript}), 200
+        return _response_ok({"transcript": transcript})
     except FileNotFoundError as e:
-        return jsonify({"error": str(e)}), 404
+        return _response_error(str(e), 404)
     except Exception as e:
         log.exception("خطا در رونویسی: %s", e)
-        return jsonify({"error": str(e)}), 500
-
-@app.post("/render")
-def render_api() -> Any:
-    try:
-        data = request.get_json(force=True)
-        job_id = uuid.uuid4().hex
-        _update_job(job_id, status="queued", progress={"percentage": 1, "message": "در صف قرار گرفت"})
-        threading.Thread(target=_render_worker, args=(job_id, data), daemon=True).start()
-        return jsonify({"jobId": job_id}), 200
-    except Exception as e:
-        log.exception("خطا در ایجاد job: %s", e)
-        return jsonify({"error": str(e)}), 500
-
-@app.get("/status")
-def status_api() -> Any:
-    job_id = (request.args.get("jobId") or request.args.get("id") or "").strip()
-    if not job_id:
-        return jsonify({"error": "jobId الزامی است"}), 400
-    job = _get_job_status(job_id)
-    if not job:
-        return jsonify({"error": "jobId یافت نشد"}), 404
-    return jsonify(job), 200
-
-@app.get("/download")
-def download_api() -> Any:
-    filename = (request.args.get("file") or "").strip()
-    if not filename:
-        return jsonify({"error": "پارامتر file الزامی است"}), 400
-    # جلوگیری از path traversal
-    if "/" in filename or "\\" in filename or filename.startswith("."):
-        return jsonify({"error": "نام فایل نامعتبر"}), 400
-    file_path = PATHS.out_local / filename
-    if not file_path.exists() or not file_path.is_file():
-        return jsonify({"error": "فایل خروجی پیدا نشد"}), 404
-    return send_from_directory(PATHS.out_local, filename, as_attachment=False)
+        return _response_error(str(e), 500)
 
 if __name__ == "__main__":
     os.makedirs(PATHS.out_local, exist_ok=True)
     host = os.getenv("VR_HOST", "0.0.0.0")
-    port = int(os.getenv("VR_PORT", "8000"))
+    port = int(os.getenv("BACKEND_PORT", os.getenv("VR_PORT", "8000")))
     log.info("🚀 VideoRobot HTTP Backend در %s:%d", host, port)
     app.run(host=host, port=port, debug=False)
