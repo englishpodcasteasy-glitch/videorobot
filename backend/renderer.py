@@ -1,441 +1,464 @@
-# -*- coding: utf-8 -*-
-"""
-VideoRobot — Renderer (نسخه کاملاً تمیز)
-همه مشکلات برطرف شده + ساختار بهتر
-"""
+"""Deterministic MoviePy-based video composer for the renderer service."""
 from __future__ import annotations
 
-import datetime
+import hashlib
+import json
 import logging
-import shlex
-import shutil
+import math
+import random
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional
-from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .config import ProjectCfg, FONTS
-from .scheduler import Scheduler
-from .subtitles import SubtitleWriter
-from .audio_processor import AudioProcessor
-from .utils import (
-    build_fonts_only,
-    sanitize_filename,
-    sh,
-    pick_default_font_name,
-    hex_to_0xRRGGBB,
-)
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
-log = logging.getLogger("VideoRobot.renderer")
+try:  # pragma: no cover - import guard for optional dependency resolution
+    import moviepy.editor as mpe
+    from moviepy.audio.fx import all as afx
+    from moviepy.video.fx import all as vfx
+except ModuleNotFoundError as exc:  # pragma: no cover - handled at runtime
+    mpe = None  # type: ignore[assignment]
+    afx = None  # type: ignore[assignment]
+    vfx = None  # type: ignore[assignment]
+    _MOVIEPY_IMPORT_ERROR = exc
+else:
+    _MOVIEPY_IMPORT_ERROR = None
 
-
-# ---------------------------------------------------------------------------
-# تنظیمات پیش‌فرض (قابل تغییر از config)
-# ---------------------------------------------------------------------------
-@dataclass
-class RenderDefaults:
-    fps: int = 30
-    ken_burns_zoom: float = 1.10
-    audio_bitrate: str = "192k"
-    video_crf: int = 23
-    max_duration: float = 3600.0  # 1 ساعت
-    min_duration: float = 0.1
+from .utils import sha256_of_paths
 
 
-# ---------------------------------------------------------------------------
-# ساخت فیلتر گراف (کلاس جداگانه برای تمیزی)
-# ---------------------------------------------------------------------------
-class FilterGraphBuilder:
-    """سازنده فیلتر گراف FFmpeg به صورت گام‌به‌گام"""
-    
-    def __init__(self, width: int, height: int):
-        self.W = width
-        self.H = height
-        self.filters: List[str] = []
-        self._counter = 0
-        self._current = None
-    
-    def _next_label(self) -> str:
-        """برچسب یکتا برای هر مرحله"""
-        label = f"v{self._counter}"
-        self._counter += 1
-        return label
-    
-    def add_base(self, input_idx: int, filter_expr: str) -> 'FilterGraphBuilder':
-        """افزودن فیلتر پایه (background با Ken Burns)"""
-        label = self._next_label()
-        self.filters.append(f"[{input_idx}:v]{filter_expr}[{label}]")
-        self._current = label
-        return self
-    
-    def add_scaled_input(self, input_idx: int, label: str) -> 'FilterGraphBuilder':
-        """افزودن ورودی مقیاس‌شده (برای intro/outro/cta)"""
-        self.filters.append(
-            f"[{input_idx}:v]scale={self.W}:{self.H},format=rgba,setpts=PTS-STARTPTS[{label}]"
-        )
-        return self
-    
-    def overlay(self, overlay_label: str, enable_expr: Optional[str] = None) -> 'FilterGraphBuilder':
-        """اضافه کردن لایه روی ویدئو"""
-        out_label = self._next_label()
-        enable_part = f":enable='{enable_expr}'" if enable_expr else ""
-        self.filters.append(
-            f"[{self._current}][{overlay_label}]overlay{enable_part}[{out_label}]"
-        )
-        self._current = out_label
-        return self
-    
-    def chromakey_overlay(
-        self, 
-        input_idx: int, 
-        key_color: str,
-        similarity: float,
-        blend: float,
-        enable_expr: str
-    ) -> 'FilterGraphBuilder':
-        """CTA با حذف پس‌زمینه سبز"""
-        cta_label = "vcta"
-        keycol = hex_to_0xRRGGBB(key_color)
-        self.filters.append(
-            f"[{input_idx}:v]scale={self.W}:{self.H},format=rgba,"
-            f"chromakey={keycol}:{similarity}:{blend}[{cta_label}]"
-        )
-        return self.overlay(cta_label, enable_expr)
-    
-    def burn_subtitles(
-        self, 
-        ass_path: Path, 
-        fonts_dir: Path,
-        font_name: str,
-        margin_v: int
-    ) -> 'FilterGraphBuilder':
-        """سوزاندن زیرنویس روی ویدئو"""
-        sub_label = self._next_label()
-        self.filters.append(
-            f"[{self._current}]subtitles={shlex.quote(str(ass_path))}:"
-            f"fontsdir={shlex.quote(str(fonts_dir))}:"
-            f"force_style='FontName={font_name},MarginV={margin_v}'[{sub_label}]"
-        )
-        self._current = sub_label
-        return self
-    
-    def finalize(self, output_label: str = "vout") -> str:
-        """نهایی‌سازی با format و برگشت filter_complex"""
-        self.filters.append(f"[{self._current}]format=yuv420p[{output_label}]")
-        return ";".join(self.filters)
+__all__ = ["VideoComposer", "Renderer"]
 
 
-# ---------------------------------------------------------------------------
-# مدیریت ورودی‌ها
-# ---------------------------------------------------------------------------
-class InputManager:
-    """مدیریت فایل‌های ورودی و ایندکس‌گذاری"""
-    
-    def __init__(self, paths, cfg: ProjectCfg):
-        self.paths = paths
-        self.cfg = cfg
-        self.inputs: List[str] = []
-        self.index: Dict[str, int] = {}
-        self._current_idx = 0
-    
-    def add_background(self, bg_file: Path) -> 'InputManager':
-        """اضافه کردن تصویر پس‌زمینه (با loop)"""
-        self.inputs.extend([
-            "-loop", "1", 
-            "-framerate", "30",  # TODO: از config بگیر
-            "-i", str(bg_file)
-        ])
-        self.index["bg"] = self._current_idx
-        self._current_idx += 1
-        return self
-    
-    def add_audio(self, audio_file: Path) -> 'InputManager':
-        """اضافه کردن صدا"""
-        self.inputs.extend(["-i", str(audio_file)])
-        self.index["audio"] = self._current_idx
-        self._current_idx += 1
-        return self
-    
-    def add_optional(self, name: str, file_path: Optional[Path]) -> 'InputManager':
-        """اضافه کردن فایل اختیاری (intro/outro/cta)"""
-        if file_path and file_path.exists():
-            self.inputs.extend(["-i", str(file_path)])
-            self.index[name] = self._current_idx
-            self._current_idx += 1
-        return self
-    
-    def get_inputs(self) -> List[str]:
-        return self.inputs
-    
-    def get_index(self) -> Dict[str, int]:
-        return self.index
+class VideoComposer:
+    """Compose MP4 videos deterministically from a manifest definition."""
 
+    def __init__(self) -> None:
+        if _MOVIEPY_IMPORT_ERROR is not None:
+            raise RuntimeError(
+                "MoviePy is not installed. Run 'pip install -r backend/requirements.txt' "
+                "or install moviepy>=1.0.3 to enable the renderer."
+            ) from _MOVIEPY_IMPORT_ERROR
+        self._log = logging.getLogger("VideoRobot.VideoComposer")
+        self._last_duration_ms: Optional[int] = None
+        self._last_inputs_sha256: Optional[str] = None
+        self._manifest_path: Optional[Path] = None
+        self._work_dir: Optional[Path] = None
 
-# ---------------------------------------------------------------------------
-# FFmpeg Commander (بدون تغییر)
-# ---------------------------------------------------------------------------
-class FFmpegCommander:
-    _has_libass: bool | None = None
+    def compose(self, manifest: Dict[str, Any], work_dir: Path) -> Path:
+        """Compose the final MP4 file described by ``manifest`` into ``work_dir``."""
 
-    @staticmethod
-    def has_nvenc() -> bool:
-        try:
-            out = sh(["ffmpeg", "-hide_banner", "-encoders"], "Probe encoders", check=False)
-            txt = (out.stdout or "") + (out.stderr or "")
-            return ("h264_nvenc" in txt) or ("hevc_nvenc" in txt)
-        except Exception:
-            return False
+        if not isinstance(manifest, dict):
+            raise ValueError("manifest must be a dict")
 
-    @staticmethod
-    def probe_duration(p: Path | None) -> float:
-        if p is None or not isinstance(p, Path) or not p.exists():
-            return 0.0
-        try:
-            proc = sh(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                 "-of", "default=nw=1:nk=1", str(p)],
-                "Probe duration",
-                check=True,
-            )
-            s = (proc.stdout or "").strip()
-            return float(s) if s else 0.0
-        except Exception:
-            return 0.0
+        work_dir = Path(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        chunks_dir = work_dir / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
 
-    @classmethod
-    def has_libass(cls) -> bool:
-        if cls._has_libass is None:
+        seed = manifest.get("seed")
+        if seed is not None:
             try:
-                res = sh(["ffmpeg", "-hide_banner", "-filters"], "Probe filters", check=False)
-                txt = (res.stdout or "") + (res.stderr or "")
-                cls._has_libass = any(k in txt for k in ("subtitles", "ass", "libass"))
-            except Exception:
-                cls._has_libass = False
-        return bool(cls._has_libass)
-
-
-# ---------------------------------------------------------------------------
-# Renderer اصلی (تمیز شده)
-# ---------------------------------------------------------------------------
-class Renderer:
-    def __init__(self, paths) -> None:
-        self.paths = paths
-        self.scheduler = Scheduler()
-        self.subs = SubtitleWriter(paths.tmp, paths.out_local)
-        self.aproc = AudioProcessor(paths.tmp)
-        self.defaults = RenderDefaults()
-
-    def _build_ken_burns(self, W: int, H: int, dur: float, fps: int) -> str:
-        """ساخت فیلتر Ken Burns با استفاده از on"""
-        zoom = self.defaults.ken_burns_zoom
-        frames = max(2, int(round(dur * fps)))
-        denom = frames - 1
-        
-        expr_x = f"on/{denom}*(iw - iw/{zoom})"
-        expr_y = f"-on/{denom}*(ih - ih/{zoom})"
-        
-        return (
-            f"scale={int(W*zoom)}:{int(H*zoom)},"
-            f"zoompan=z={zoom}:d={frames}:x='{expr_x}':y='{expr_y}':s={W}x{H}"
-        )
-
-    def _validate_audio(self, audio_file: Path, cfg: ProjectCfg) -> Tuple[Path, float]:
-        """نرمال‌سازی و اعتبارسنجی صدا"""
-        if not audio_file.exists():
-            raise FileNotFoundError(f"❌ فایل صدا پیدا نشد: {audio_file}")
-        
-        norm_audio = self.aproc.normalize(audio_file, cfg.audio)
-        duration = FFmpegCommander.probe_duration(norm_audio)
-        
-        if duration < self.defaults.min_duration:
-            raise RuntimeError(f"❌ صدا خیلی کوتاه است: {duration:.2f}s")
-        if duration > self.defaults.max_duration:
-            raise RuntimeError(f"❌ صدا خیلی طولانی است: {duration:.2f}s")
-        
-        log.info(f"✅ صدا آماده شد: {duration:.2f}s")
-        return Path(norm_audio), duration
-
-    def _prepare_subtitles(
-        self, 
-        norm_audio: Path, 
-        cfg: ProjectCfg,
-        W: int,
-        H: int
-    ) -> Tuple[Path, Path, set]:
-        """رونویسی، استخراج کلمات کلیدی و ساخت زیرنویس"""
-        # رونویسی
-        words = self.scheduler.transcribe_words(
-            norm_audio,
-            size=cfg.audio.whisper_model,
-            use_vad=cfg.audio.use_vad,
-        )
-        
-        # استخراج کلمات کلیدی
-        full_text = " ".join(w["raw"] for w in words)
-        kws_list = self.scheduler.extract_keywords(
-            full_text, 
-            topk=16, 
-            ngram_max=1, 
-            dedup_lim=0.9
-        )
-        kws = {k.lower() for k in kws_list}
-        
-        # ساخت فایل‌های زیرنویس
-        stem = Path(norm_audio).stem
-        ass_path, srt_path = self.subs.write(
-            words=words,
-            cfg=cfg.captions,
-            kws=kws,
-            ts_off=cfg.timestamp_offset,
-            stem=stem,
-            playresx=W,
-            playresy=H,
-        )
-        
-        return Path(ass_path), Path(srt_path), kws
-
-    def _build_cta_enable(self, cta_cfg) -> str:
-        """ساخت عبارت زمانی نمایش CTA (واضح‌تر)"""
-        start = cta_cfg.start_s
-        repeat = max(cta_cfg.repeat_s, 0.001)
-        
-        # نمایش تناوبی از زمان start
-        # هر repeat ثانیه یکبار نمایش داده می‌شود
-        return f"gte(t,{start})*not(mod(t-{start},{repeat}))"
-
-    def _get_encoder_params(self) -> List[str]:
-        """پارامترهای انکودر ویدئو (NVENC یا x264)"""
-        if FFmpegCommander.has_nvenc():
-            log.info("🚀 استفاده از NVENC (سخت‌افزاری)")
-            return ["-c:v", "h264_nvenc", "-preset", "fast"]
+                seed_int = int(seed)
+            except (TypeError, ValueError) as exc:  # pragma: no cover - validation guard
+                raise ValueError("seed must be an integer") from exc
+            random.seed(seed_int)
+            np.random.seed(seed_int)
         else:
-            log.info("🐌 استفاده از libx264 (نرم‌افزاری)")
-            return [
-                "-c:v", "libx264", 
-                "-preset", "veryfast", 
-                "-crf", str(self.defaults.video_crf)
-            ]
+            random.seed()
+            np.random.seed()
 
-    def _copy_to_drive(self, out_path: Path, srt_path: Path):
-        """کپی فایل‌ها به درایو خارجی (اگر موجود باشد)"""
-        if not self.paths.out_drive:
-            return
-        
+        video_cfg = manifest.get("video") or {}
+        width = int(video_cfg.get("width", 1280) or 1280)
+        height = int(video_cfg.get("height", 720) or 720)
+        fps = float(video_cfg.get("fps", 30) or 30)
+        if width <= 0 or height <= 0:
+            raise ValueError("video dimensions must be positive")
+        if fps <= 0:
+            raise ValueError("fps must be positive")
+
+        bg_color = self._parse_color(video_cfg.get("bg_color"), default=(16, 19, 24))
+
+        _, tracks, _ = self.prepare_manifest(manifest, work_dir)
+
+        visual_layers: List[mpe.VideoClip] = []
+        audio_specs: List[Dict[str, Any]] = []
+        resources: List[Any] = []
+        resource_ids: set[int] = set()
+        total_duration = 0.0
+        last_video_index: Optional[int] = None
+
+        def remember(clip: Any) -> Any:
+            if hasattr(clip, "close"):
+                ident = id(clip)
+                if ident not in resource_ids:
+                    resources.append(clip)
+                    resource_ids.add(ident)
+            return clip
+
         try:
-            shutil.copy2(str(out_path), str(self.paths.out_drive / out_path.name))
-            shutil.copy2(str(srt_path), str(self.paths.out_drive / srt_path.name))
-            log.info("✅ فایل‌ها به درایو کپی شدند")
-        except Exception as e:
-            log.warning(f"⚠️  کپی به درایو ناموفق: {e}")
+            for track in tracks:
+                ttype = (track.get("type") or "").lower()
+                if ttype == "audio":
+                    audio_specs.append(track)
+                    continue
 
-    # ========== متد اصلی render ==========
-    def render(self, cfg: ProjectCfg) -> Tuple[str, str, int, str]:
-        """رندر ویدئوی نهایی"""
-        W, H = cfg.visual.width, cfg.visual.height
-        
-        # 1️⃣ بررسی فایل‌ها
-        audio_file = self.paths.assets / cfg.audio.filename
-        bg_file = self.paths.assets / cfg.visual.bg_image
-        
-        if not bg_file.exists():
-            raise FileNotFoundError(f"❌ تصویر پس‌زمینه پیدا نشد: {bg_file}")
-        
-        # 2️⃣ آماده‌سازی صدا
-        norm_audio, main_dur = self._validate_audio(audio_file, cfg)
-        
-        # 3️⃣ مدیریت ورودی‌ها
-        inputs = InputManager(self.paths, cfg)
-        inputs.add_background(bg_file)
-        inputs.add_audio(norm_audio)
-        
-        # فایل‌های اختیاری
-        intro_path = (self.paths.assets / cfg.intro_outro.intro_mp4) if cfg.intro_outro.intro_mp4 else None
-        outro_path = (self.paths.assets / cfg.intro_outro.outro_mp4) if cfg.intro_outro.outro_mp4 else None
-        cta_path = (self.paths.assets / cfg.cta.loop_mp4) if cfg.cta.loop_mp4 else None
-        
-        inputs.add_optional("intro", intro_path)
-        inputs.add_optional("outro", outro_path)
-        inputs.add_optional("cta", cta_path)
-        
-        idx = inputs.get_index()
-        
-        # محاسبه مدت زمان کل
-        intro_dur = FFmpegCommander.probe_duration(intro_path) if intro_path else 0.0
-        outro_dur = FFmpegCommander.probe_duration(outro_path) if outro_path else 0.0
-        total_dur = intro_dur + main_dur + outro_dur
-        
-        log.info(f"⏱️  مدت زمان: intro={intro_dur:.1f}s + main={main_dur:.1f}s + outro={outro_dur:.1f}s = {total_dur:.1f}s")
-        
-        # 4️⃣ زیرنویس
-        ass_path, srt_path, kws = self._prepare_subtitles(norm_audio, cfg, W, H)
-        
-        # 5️⃣ ساخت فیلتر گراف
-        fg = FilterGraphBuilder(W, H)
-        
-        # پس‌زمینه با Ken Burns
-        kb_filter = self._build_ken_burns(W, H, total_dur, self.defaults.fps)
-        fg.add_base(idx["bg"], f"{kb_filter},setpts=PTS-STARTPTS")
-        
-        # Intro
-        if "intro" in idx and intro_dur > 0:
-            fg.add_scaled_input(idx["intro"], "vintro")
-            fg.overlay("vintro", f"between(t,0,{intro_dur})")
-        
-        # Outro
-        if "outro" in idx and outro_dur > 0:
-            start_o = total_dur - outro_dur
-            fg.add_scaled_input(idx["outro"], "voutro")
-            fg.overlay("voutro", f"between(t,{start_o},{total_dur})")
-        
-        # CTA
-        if "cta" in idx and cfg.cta.loop_mp4:
-            enable_cta = self._build_cta_enable(cfg.cta)
-            fg.chromakey_overlay(
-                idx["cta"],
-                cfg.cta.key_color,
-                cfg.cta.similarity,
-                cfg.cta.blend,
-                enable_cta
+                if ttype == "video":
+                    clip, clip_duration = self._build_video_clip(track, width, height, remember)
+                    crossfade = float(track.get("crossfade", 0.5) or 0.0)
+                    if crossfade > 0 and last_video_index is not None:
+                        prev = visual_layers[last_video_index]
+                        prev_faded = remember(vfx.fadeout(prev, crossfade))
+                        visual_layers[last_video_index] = prev_faded
+                        clip = remember(vfx.fadein(clip, crossfade))
+                    last_video_index = len(visual_layers)
+                elif ttype == "image":
+                    clip, clip_duration = self._build_image_clip(track, remember)
+                elif ttype == "text":
+                    clip, clip_duration = self._build_text_clip(track, remember)
+                else:
+                    raise ValueError(f"Unsupported track type: {ttype}")
+
+                start = float(track.get("start", 0.0) or 0.0)
+                clip = remember(clip.set_start(start))
+                visual_layers.append(clip)
+                total_duration = max(total_duration, start + clip_duration)
+
+            if total_duration <= 0:
+                total_duration = 1.0
+
+            audio_layers: List[mpe.AudioClip] = []
+            for track in audio_specs:
+                clip, clip_duration = self._build_audio_clip(track, total_duration, remember)
+                start = float(track.get("start", 0.0) or 0.0)
+                clip = remember(clip.set_start(start))
+                audio_layers.append(clip)
+                total_duration = max(total_duration, start + clip_duration)
+
+            base_clip = remember(
+                mpe.ColorClip(size=(width, height), color=bg_color).set_duration(total_duration)
             )
-        
-        # زیرنویس
-        if FFmpegCommander.has_libass() and ass_path.exists():
-            font_dir = Path(FONTS)
+            visual_layers.insert(0, base_clip)
+
+            final_clip = remember(
+                mpe.CompositeVideoClip(visual_layers, size=(width, height)).set_duration(total_duration)
+            )
+
+            if audio_layers:
+                audio_mix = remember(mpe.CompositeAudioClip(audio_layers))
+                final_clip = remember(final_clip.set_audio(audio_mix))
+
+            output_path = work_dir / "final.mp4"
+            temp_audio = chunks_dir / "temp-audio.m4a"
+            final_clip.write_videofile(
+                str(output_path),
+                fps=fps,
+                codec="libx264",
+                audio_codec="aac",
+                temp_audiofile=str(temp_audio),
+                remove_temp=True,
+                threads=4,
+                logger=None,
+            )
+
+            duration_ms = int(math.ceil(final_clip.duration * 1000))
+            self._last_duration_ms = duration_ms
+            return output_path
+        finally:
+            for clip in reversed(resources):
+                try:
+                    clip.close()
+                except Exception:  # pragma: no cover - resource cleanup guard
+                    continue
+
+    @property
+    def last_duration_ms(self) -> Optional[int]:
+        return self._last_duration_ms
+
+    @property
+    def last_inputs_sha256(self) -> Optional[str]:
+        return self._last_inputs_sha256
+
+    @property
+    def manifest_path(self) -> Optional[Path]:
+        return self._manifest_path
+
+    def prepare_manifest(
+        self, manifest: Dict[str, Any], work_dir: Path
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str]:
+        """Normalise manifest, resolve assets, and compute the inputs hash."""
+
+        if not isinstance(manifest, dict):
+            raise ValueError("manifest must be a dict")
+
+        self._work_dir = Path(work_dir)
+        tracks = manifest.get("tracks")
+        if not isinstance(tracks, list) or not tracks:
+            raise ValueError("tracks must be a non-empty list")
+
+        canonical_manifest = self._canonicalize(manifest)
+        manifest_path = self._work_dir / "manifest_canonical.json"
+        manifest_path.write_text(
+            json.dumps(canonical_manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        self._manifest_path = manifest_path
+
+        asset_paths = self._collect_asset_paths(tracks)
+        inputs_hash = self._write_inputs_hash(self._work_dir, canonical_manifest, asset_paths)
+        self._last_inputs_sha256 = inputs_hash
+        return canonical_manifest, tracks, inputs_hash
+
+    # ------------------------------------------------------------------
+    # Builders
+    # ------------------------------------------------------------------
+
+    def _build_video_clip(
+        self,
+        track: Dict[str, Any],
+        width: int,
+        height: int,
+        remember,
+    ) -> Tuple[mpe.VideoClip, float]:
+        src = track.get("src")
+        if not src:
+            raise ValueError("video track missing src")
+
+        clip = remember(mpe.VideoFileClip(str(self._resolve_path(src))))
+
+        trim_start = float(track.get("trim_start", 0.0) or 0.0)
+        trim_end = float(track.get("trim_end", 0.0) or 0.0)
+        duration = clip.duration
+        start_t = max(0.0, trim_start)
+        end_t = max(start_t + 0.01, duration - max(0.0, trim_end))
+        clip = remember(clip.subclip(start_t, end_t))
+        clip = remember(clip.without_audio())
+
+        fit = str(track.get("fit", "contain") or "contain").lower()
+        clip = remember(self._fit_clip(clip, width, height, fit))
+
+        custom_scale = track.get("scale")
+        if custom_scale not in (None, ""):
+            clip = remember(clip.resize(float(custom_scale)))
+
+        clip_duration = float(track.get("duration", clip.duration) or clip.duration)
+        clip_duration = max(0.1, clip_duration)
+        clip = remember(clip.set_duration(clip_duration))
+        clip = remember(clip.set_position(self._position(track)))
+        return clip, clip_duration
+
+    def _build_image_clip(self, track: Dict[str, Any], remember) -> Tuple[mpe.VideoClip, float]:
+        src = track.get("src")
+        if not src:
+            raise ValueError("image track missing src")
+
+        clip = remember(mpe.ImageClip(str(self._resolve_path(src))))
+        scale = track.get("scale")
+        if scale not in (None, ""):
+            clip = remember(clip.resize(float(scale)))
+
+        clip_duration = float(track.get("duration", 3.0) or 3.0)
+        clip_duration = max(0.1, clip_duration)
+        clip = remember(clip.set_duration(clip_duration))
+        clip = remember(clip.set_position(self._position(track)))
+        return clip, clip_duration
+
+    def _build_text_clip(self, track: Dict[str, Any], remember) -> Tuple[mpe.VideoClip, float]:
+        content = str(track.get("content", "")).strip()
+        if not content:
+            raise ValueError("text track missing content")
+
+        array = self._render_text_image(track, content)
+        clip = remember(mpe.ImageClip(array))
+        clip_duration = float(track.get("duration", max(2.0, len(content) * 0.08)) or 2.0)
+        clip_duration = max(0.5, clip_duration)
+        clip = remember(clip.set_duration(clip_duration))
+        clip = remember(clip.set_position(self._position(track)))
+        return clip, clip_duration
+
+    def _build_audio_clip(
+        self,
+        track: Dict[str, Any],
+        base_duration: float,
+        remember,
+    ) -> Tuple[mpe.AudioClip, float]:
+        src = track.get("src")
+        if not src:
+            raise ValueError("audio track missing src")
+
+        clip = remember(mpe.AudioFileClip(str(self._resolve_path(src))))
+        target_duration = track.get("duration")
+        if target_duration in (None, ""):
+            target_duration = base_duration if base_duration > 0 else clip.duration
+        target_duration = float(target_duration)
+
+        loop = bool(track.get("loop", False))
+        if loop and target_duration > clip.duration:
+            clip = remember(afx.audio_loop(clip, duration=target_duration))
+            clip_duration = target_duration
+        else:
+            clip_duration = min(target_duration, clip.duration)
+            clip = remember(clip.subclip(0, clip_duration))
+
+        gain_db = track.get("gain_db")
+        if gain_db not in (None, ""):
+            factor = 10 ** (float(gain_db) / 20.0)
+            clip = remember(clip.volumex(factor))
+
+        return clip, clip_duration
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _collect_asset_paths(self, tracks: Sequence[Dict[str, Any]]) -> List[Path]:
+        seen: set[Path] = set()
+        assets: List[Path] = []
+        for track in tracks:
+            ttype = (track.get("type") or "").lower()
+            if ttype in {"video", "audio", "image"}:
+                src = track.get("src")
+                if not src:
+                    raise ValueError(f"track of type {ttype} missing src")
+                path = self._resolve_path(src)
+                if path not in seen:
+                    assets.append(path)
+                    seen.add(path)
+            if ttype == "text" and track.get("font"):
+                path = self._resolve_path(track["font"])
+                if path not in seen:
+                    assets.append(path)
+                    seen.add(path)
+        return assets
+
+    def _write_inputs_hash(
+        self,
+        work_dir: Path,
+        canonical_manifest: Dict[str, Any],
+        asset_paths: Sequence[Path],
+    ) -> str:
+        sha = hashlib.sha256()
+        canonical_json = json.dumps(canonical_manifest, sort_keys=True, separators=(",", ":"))
+        sha.update(canonical_json.encode("utf-8"))
+        if asset_paths:
+            sha.update(sha256_of_paths(asset_paths).encode("utf-8"))
+        digest = sha.hexdigest()
+        (work_dir / "inputs.sha256").write_text(digest, encoding="utf-8")
+        return digest
+
+    def _fit_clip(self, clip: mpe.VideoClip, width: int, height: int, mode: str) -> mpe.VideoClip:
+        w, h = clip.size
+        if not w or not h:
+            return clip.resize((width, height))
+
+        mode = mode.lower()
+        if mode == "cover":
+            scale = max(width / w, height / h)
+        elif mode == "scale":
+            scale = 1.0
+        else:  # contain
+            scale = min(width / w, height / h)
+
+        clip = clip.resize(scale)
+        return clip
+
+    def _position(self, track: Dict[str, Any]) -> Any:
+        x = track.get("x")
+        y = track.get("y")
+        if x in (None, "") and y in (None, ""):
+            return "center"
+        return (int(float(x or 0)), int(float(y or 0)))
+
+    def _render_text_image(self, track: Dict[str, Any], content: str) -> np.ndarray:
+        font_size = int(track.get("size", 48) or 48)
+        font_name = track.get("font")
+        font = None
+        if font_name:
+            font = ImageFont.truetype(str(self._resolve_path(font_name)), font_size)
+        else:
             try:
-                fontname = getattr(cfg.captions, "font_name", None) or pick_default_font_name(font_dir)
-            except Exception:
-                fontname = "DejaVu Sans"
-            
-            fonts_dir = build_fonts_only(font_dir, self.paths.tmp)
-            margin_v = getattr(cfg.captions, "margin_v", 80)
-            fg.burn_subtitles(ass_path, fonts_dir, fontname, margin_v)
-        
-        filter_graph = fg.finalize()
-        
-        # 6️⃣ مسیر خروجی
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{sanitize_filename(norm_audio.stem)}_{W}x{H}.mp4"
-        out_path = self.paths.out_local / filename
-        
-        # 7️⃣ دستور FFmpeg
-        cmd = [
-            "ffmpeg", "-y", "-hide_banner",
-            *inputs.get_inputs(),
-            "-filter_complex", filter_graph,
-            "-map", "[vout]",
-            "-map", f"{idx['audio']}:a",
-            "-t", str(total_dur),
-            *self._get_encoder_params(),
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", self.defaults.audio_bitrate,
-            str(out_path),
-        ]
-        
-        log.info("🎬 شروع رندر...")
-        sh(cmd, "Render FFmpeg")
-        log.info(f"✅ ویدئو رندر شد: {out_path.name}")
-        
-        # 8️⃣ کپی به درایو
-        self._copy_to_drive(out_path, srt_path)
-        
-        return (str(out_path), str(norm_audio), len(fg.filters), str(srt_path))
+                font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+            except OSError:
+                font = ImageFont.load_default()
+
+        lines = content.splitlines() or [""]
+        padding = 16
+        max_w = 1
+        total_h = padding * 2
+        line_heights: List[int] = []
+        for line in lines:
+            if hasattr(font, "getbbox"):
+                bbox = font.getbbox(line or " ")  # type: ignore[attr-defined]
+                width = bbox[2] - bbox[0]
+                height = bbox[3] - bbox[1]
+            else:  # pragma: no cover - legacy Pillow fallback
+                width, height = font.getsize(line or " ")
+            max_w = max(max_w, width)
+            line_heights.append(height)
+            total_h += height
+        total_h += max(0, len(lines) - 1) * 6
+
+        img = Image.new("RGBA", (max_w + padding * 2, total_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        color = self._parse_color(track.get("color"), default=(255, 255, 255))
+        fill = (*color, 255)
+        cursor_y = padding
+        for line, height in zip(lines, line_heights):
+            draw.text((padding, cursor_y), line, font=font, fill=fill)
+            cursor_y += height + 6
+
+        return np.array(img)
+
+    def _parse_color(self, value: Any, default: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        if isinstance(value, (list, tuple)) and len(value) >= 3:
+            return tuple(int(max(0, min(255, float(v)))) for v in value[:3])  # type: ignore[arg-type]
+
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("#"):
+                text = text[1:]
+            if text.lower().startswith("rgb") and "(" in text and ")" in text:
+                nums = text[text.find("(") + 1 : text.find(")")].split(",")
+                vals = [int(float(n.strip())) for n in nums[:3]]
+                return tuple(max(0, min(255, v)) for v in vals)
+            if len(text) == 3:
+                text = "".join(ch * 2 for ch in text)
+            if len(text) == 6:
+                try:
+                    r = int(text[0:2], 16)
+                    g = int(text[2:4], 16)
+                    b = int(text[4:6], 16)
+                    return (r, g, b)
+                except ValueError:
+                    pass
+        return default
+
+    def _resolve_path(self, src: str) -> Path:
+        candidate = Path(str(src)).expanduser()
+        search_roots: Iterable[Path] = []
+        if candidate.is_absolute():
+            search_roots = [candidate]
+        else:
+            work_dir = self._work_dir or Path.cwd()
+            search_roots = [work_dir / candidate, Path.cwd() / candidate]
+
+        for path in search_roots:
+            resolved = path.resolve()
+            if resolved.exists():
+                return resolved
+
+        if candidate.exists():
+            return candidate.resolve()
+
+        raise FileNotFoundError(f"Asset not found: {candidate}")
+
+    def _canonicalize(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self._canonicalize(data[k]) for k in sorted(data)}
+        if isinstance(data, list):
+            return [self._canonicalize(item) for item in data]
+        return data
+
+
+# Historical alias expected by external callers (e.g. Streamlit UI, legacy imports)
+Renderer = VideoComposer

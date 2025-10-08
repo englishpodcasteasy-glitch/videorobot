@@ -1,0 +1,44 @@
+{
+  "seed": 314,
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "bg_color": "#111827"
+  },
+  "tracks": [
+    {
+      "type": "video",
+      "src": "Assets/Intro.mp4",
+      "start": 0,
+      "fit": "cover",
+      "duration": 6,
+      "crossfade": 0.6
+    },
+    {
+      "type": "video",
+      "src": "Assets/Broll.mp4",
+      "start": 5.4,
+      "trim_start": 0.5,
+      "duration": 6,
+      "fit": "contain"
+    },
+    {
+      "type": "audio",
+      "src": "Assets/Score.mp3",
+      "start": 0,
+      "loop": true,
+      "gain_db": -3
+    },
+    {
+      "type": "text",
+      "content": "Video + Audio mix",
+      "start": 0.8,
+      "duration": 4,
+      "x": 120,
+      "y": 140,
+      "size": 70,
+      "color": "#FFFFFF"
+    }
+  ]
+}

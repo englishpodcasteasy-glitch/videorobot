@@ -1,0 +1,36 @@
+name: Release Assets
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+      - name: Smoke test backend
+        run: python -m compileall backend
+      - name: Collect release artifacts
+        run: |
+          mkdir -p artifacts/docs
+          cp REPORT.md artifacts/
+          cp VERSION artifacts/
+          cp colab_runner.ipynb artifacts/
+          cp docs/api_contract_backend.json artifacts/docs/
+          cp docs/api_contract_frontend.json artifacts/docs/
+          cp docs/api_harmony_report.json artifacts/docs/
+          cp -r docs/manifest_examples artifacts/docs/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: videorobot-release-assets
+          path: artifacts
