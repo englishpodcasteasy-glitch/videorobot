@@ -10,10 +10,55 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
-import moviepy.editor as mpe
-from moviepy.audio.fx import all as afx
-from moviepy.video.fx import all as vfx
 from PIL import Image, ImageDraw, ImageFont
+
+# --- MoviePy 1.x / 2.x compatibility layer (fix for missing `moviepy.editor`) ---
+try:
+    # MoviePy >= 2.0 (no `editor` module)
+    from moviepy import (
+        AudioFileClip,
+        VideoFileClip,
+        ImageClip,
+        ColorClip,
+        CompositeVideoClip,
+        concatenate_videoclips,
+    )
+    from moviepy.audio import fx as afx
+    from moviepy.video import fx as vfx
+    try:
+        from moviepy.audio.compositing import CompositeAudioClip
+    except Exception:
+        # some builds keep it under AudioClip
+        from moviepy.audio.AudioClip import CompositeAudioClip  # type: ignore
+
+    class _MPEShim:
+        AudioFileClip = AudioFileClip
+        VideoFileClip = VideoFileClip
+        ImageClip = ImageClip
+        ColorClip = ColorClip
+        CompositeVideoClip = CompositeVideoClip
+        CompositeAudioClip = CompositeAudioClip
+        concatenate_videoclips = staticmethod(concatenate_videoclips)
+
+    mpe = _MPEShim()  # type: ignore
+
+except Exception:
+    # MoviePy 1.x fallback (has `editor`)
+    import moviepy.editor as mpe  # type: ignore
+    from moviepy.audio.fx import all as afx  # type: ignore
+    from moviepy.video.fx import all as vfx  # type: ignore
+
+    # normalize names (used by type hints below)
+    AudioFileClip = mpe.AudioFileClip
+    VideoFileClip = mpe.VideoFileClip
+    ImageClip = mpe.ImageClip
+    ColorClip = mpe.ColorClip
+    CompositeVideoClip = mpe.CompositeVideoClip
+    try:
+        CompositeAudioClip = mpe.CompositeAudioClip
+    except Exception:
+        from moviepy.audio.compositing import CompositeAudioClip  # type: ignore
+# ------------------------------------------------------------------------------
 
 from .utils import sha256_of_paths
 
@@ -128,7 +173,7 @@ class VideoComposer:
             )
 
             if audio_layers:
-                audio_mix = remember(mpe.CompositeAudioClip(audio_layers))
+                audio_mix = remember(CompositeAudioClip(audio_layers))
                 final_clip = remember(final_clip.set_audio(audio_mix))
 
             output_path = work_dir / "final.mp4"
@@ -207,7 +252,7 @@ class VideoComposer:
         if not src:
             raise ValueError("video track missing src")
 
-        clip = remember(mpe.VideoFileClip(str(self._resolve_path(src))))
+        clip = remember(VideoFileClip(str(self._resolve_path(src))))
 
         trim_start = float(track.get("trim_start", 0.0) or 0.0)
         trim_end = float(track.get("trim_end", 0.0) or 0.0)
@@ -235,7 +280,7 @@ class VideoComposer:
         if not src:
             raise ValueError("image track missing src")
 
-        clip = remember(mpe.ImageClip(str(self._resolve_path(src))))
+        clip = remember(ImageClip(str(self._resolve_path(src))))
         scale = track.get("scale")
         if scale not in (None, ""):
             clip = remember(clip.resize(float(scale)))
@@ -252,7 +297,7 @@ class VideoComposer:
             raise ValueError("text track missing content")
 
         array = self._render_text_image(track, content)
-        clip = remember(mpe.ImageClip(array))
+        clip = remember(ImageClip(array))
         clip_duration = float(track.get("duration", max(2.0, len(content) * 0.08)) or 2.0)
         clip_duration = max(0.5, clip_duration)
         clip = remember(clip.set_duration(clip_duration))
@@ -269,7 +314,7 @@ class VideoComposer:
         if not src:
             raise ValueError("audio track missing src")
 
-        clip = remember(mpe.AudioFileClip(str(self._resolve_path(src))))
+        clip = remember(AudioFileClip(str(self._resolve_path(src))))
         target_duration = track.get("duration")
         if target_duration in (None, ""):
             target_duration = base_duration if base_duration > 0 else clip.duration
