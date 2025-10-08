@@ -111,6 +111,22 @@ window.VIDEOROBOT_API_BASE_URL || window.VITE_API_BASE_URL || window.API_BASE_UR
 - **Cloudflare Tunnel:** پس از نصب `cloudflared` و تنظیم `CF_TUNNEL_TOKEN`، اسکریپت `scripts/run_cloudflare_tunnel.sh` به‌طور خودکار مبدا جدید را به CORS اضافه می‌کند.
 - **فرانت‌اند بدون API:** اگر سرویس بک‌اند در دسترس نباشد، برچسب وضعیت «Offline» می‌ماند و در کنسول مرورگر خطا ثبت می‌شود؛ URL را بررسی و مجدداً تلاش کنید.
 
+## Conflict Recovery Helper
+
+اگر در حین Merge یا بازپایه‌سازی با تعارض مواجه شدید، اسکریپت جدید `scripts/resolve_conflicts_preferring_pr.sh` همان دستورالعملی را که در بررسی‌های Codex استفاده شد اجرا می‌کند:
+
+```bash
+REPO_URL=<fork-or-upstream> \
+WORKDIR=/content/videorobot \
+SKIP_PUSH=1 \  # برای push خودکار به 0 تغییر دهید
+scripts/resolve_conflicts_preferring_pr.sh
+```
+
+- شاخه Feature (الگویی مشابه `codex/` یا `feat/`) را پیدا می‌کند و با `main` merge می‌کند در حالی که نسخه PR روی تعارض‌ها غالب است.
+- وابستگی‌های بک‌اند را نصب کرده، `python -m compileall backend` و چک سلامت `/healthz` را اجرا می‌کند.
+- در صورت وجود تغییرات، commit با پیام ثابت `fix: resolve conflicts preferring PR; ensure backend package; smoke ok` می‌سازد و در صورت نیاز push می‌کند.
+- اگر push را فعال کنید (`SKIP_PUSH=0`)، branch را روی remote هم به‌روزرسانی می‌کند.
+
 ## نسخه‌بندی
 
 - نسخه فعلی پروژه: محتوای فایل [`VERSION`](VERSION) (به‌صورت پیش‌فرض `0.1.0`).
