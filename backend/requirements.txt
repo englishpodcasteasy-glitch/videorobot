@@ -4,3 +4,9 @@ ffmpeg-python
 faster-whisper
 ctranslate2
 yake
+numpy>=1.26
+opencv-python-headless>=4.10
+moviepy>=1.0.3,<2
+imageio-ffmpeg>=0.4.9
+jsonschema>=4.23
+Pillow>=9.5

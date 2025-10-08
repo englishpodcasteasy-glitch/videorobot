@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "required": ["video", "tracks"],
+  "properties": {
+    "seed": {"type": "integer"},
+    "video": {
+      "type": "object",
+      "properties": {
+        "width": {"type": "integer"},
+        "height": {"type": "integer"},
+        "fps": {"type": "number"},
+        "bg_color": {"type": "string"}
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {"$ref": "#/definitions/videoTrack"},
+          {"$ref": "#/definitions/audioTrack"},
+          {"$ref": "#/definitions/imageTrack"},
+          {"$ref": "#/definitions/textTrack"}
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "baseTimed": {
+      "type": "object",
+      "properties": {
+        "start": {"type": "number", "minimum": 0},
+        "duration": {"type": "number", "minimum": 0}
+      }
+    },
+    "videoTrack": {
+      "allOf": [
+        {"$ref": "#/definitions/baseTimed"},
+        {
+          "type": "object",
+          "required": ["type", "src"],
+          "properties": {
+            "type": {"const": "video"},
+            "src": {"type": "string"},
+            "trim_start": {"type": "number", "minimum": 0},
+            "trim_end": {"type": "number", "minimum": 0},
+            "fit": {"enum": ["cover", "contain", "scale"]},
+            "x": {"type": "number"},
+            "y": {"type": "number"}
+          }
+        }
+      ]
+    },
+    "audioTrack": {
+      "allOf": [
+        {"$ref": "#/definitions/baseTimed"},
+        {
+          "type": "object",
+          "required": ["type", "src"],
+          "properties": {
+            "type": {"const": "audio"},
+            "src": {"type": "string"},
+            "gain_db": {"type": "number"},
+            "loop": {"type": "boolean"}
+          }
+        }
+      ]
+    },
+    "imageTrack": {
+      "allOf": [
+        {"$ref": "#/definitions/baseTimed"},
+        {
+          "type": "object",
+          "required": ["type", "src"],
+          "properties": {
+            "type": {"const": "image"},
+            "src": {"type": "string"},
+            "x": {"type": "number"},
+            "y": {"type": "number"},
+            "scale": {"type": "number"}
+          }
+        }
+      ]
+    },
+    "textTrack": {
+      "allOf": [
+        {"$ref": "#/definitions/baseTimed"},
+        {
+          "type": "object",
+          "required": ["type", "content"],
+          "properties": {
+            "type": {"const": "text"},
+            "content": {"type": "string"},
+            "font": {"type": "string"},
+            "size": {"type": "number"},
+            "color": {"type": "string"},
+            "x": {"type": "number"},
+            "y": {"type": "number"}
+          }
+        }
+      ]
+    }
+  }
+}
