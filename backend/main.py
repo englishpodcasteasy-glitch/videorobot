@@ -22,8 +22,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # بخش داخلی
-from config import Paths, ProjectCfg, AudioCfg, CaptionCfg, FigureCfg, IntroOutroCfg, CTACfg, BGMCfg, BrollCfg, VisualCfg, ShortsCfg, Aspect, CaptionPosition, ShortsMode, FONTS
-from scheduler import Scheduler
+from .config import Paths, ProjectCfg, AudioCfg, CaptionCfg, FigureCfg, IntroOutroCfg, CTACfg, BGMCfg, BrollCfg, VisualCfg, ShortsCfg, Aspect, CaptionPosition, ShortsMode, FONTS
 from utils import docs_guard, mount_drive_once, resolve_drive_base
 from renderer_service import renderer_bp, RendererQueue
 
