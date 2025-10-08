@@ -1,22 +1,43 @@
 # VideoRobot 🤖🎬
 
-یک پلتفرم کامل برای تولید ویدیوهای خودکار با قابلیت‌های:
-- رونویسی هوشمند صوت با Whisper
-- تولید زیرنویس انیمیشنی
-- پردازش حرفه‌ای صدا (EBU R128)
-- رندر ویدیو با FFmpeg
+VideoRobot یک پلتفرم کامل برای ساخت ویدیوهای خودکار است که شامل موارد زیر می‌شود:
 
-## نصب و اجرا در Google Colab
+- رونویسی هوشمند صوت با Whisper و Faster-Whisper
+- تولید زیرنویس متحرک و قابل شخصی‌سازی
+- پردازش صوت مطابق استاندارد EBU R128
+- رندر و ترکیب لایه‌های ویدیو، صدا، تصویر و متن با MoviePy و FFmpeg
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/englishpodcasteasy-glitch/videorobot/blob/main/colab_runner.ipynb)
+## شروع سریع (Quick Links)
 
-## Colab GPU Render Quickstart
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/englishpodcasteasy-glitch/videorobot/blob/main/VideoRobot_Colab_Runner.ipynb)
 
-1. **Install FFmpeg (Colab-friendly):** `!bash scripts/install_ffmpeg_colab.sh`
-2. **Install Python dependencies:** `!pip install -r backend/requirements.txt`
-3. **Expose the backend port:** `%env BACKEND_PORT=8000`
-4. **Launch the server:** `!python backend/main.py &`
-5. **Prepare a manifest** (save as `/content/manifest.json` for the curl commands below):
+- [راهنمای کامل راه‌اندازی در REPORT.md](REPORT.md)
+- [Schema مانیفست رندر](backend/schemas/render_manifest.schema.json)
+
+## راه‌اندازی سریع در Google Colab
+
+این مراحل در نوت‌بوک `VideoRobot_Colab_Runner.ipynb` نیز آماده شده‌اند؛ اگر ترجیح می‌دهید دستی اجرا کنید از دستورهای زیر استفاده نمایید.
+
+1. **نصب FFmpeg (مخصوص Colab):**
+
+   ```bash
+   !bash scripts/install_ffmpeg_colab.sh
+   ```
+
+2. **نصب وابستگی‌های پایتون:**
+
+   ```bash
+   !pip install -r backend/requirements.txt
+   ```
+
+3. **تنظیم پورت و اجرای سرور:**
+
+   ```bash
+   %env BACKEND_PORT=8000
+   !python backend/main.py &
+   ```
+
+4. **ساخت مانیفست نمونه** (ذخیره در `/content/manifest.json`):
 
    ```json
    {
@@ -31,7 +52,7 @@
    }
    ```
 
-6. **Submit a render job:**
+5. **ارسال درخواست رندر:**
 
    ```bash
    !curl -s -X POST http://127.0.0.1:8000/render \
@@ -39,8 +60,28 @@
      -d @/content/manifest.json
    ```
 
-7. **Track progress:** `!curl -s http://127.0.0.1:8000/progress/<job_id>`
+6. **پیگیری وضعیت:**
 
-8. **Download the result:** `!curl -s -OJ "http://127.0.0.1:8000/download?jobId=<job_id>"`
+   ```bash
+   !curl -s http://127.0.0.1:8000/progress/<job_id>
+   ```
 
-Rendered MP4 files live under `/content/outputs/<job_id>/final.mp4` on Colab (or `./outputs/<job_id>/final.mp4` locally). Each job directory also contains `manifest_canonical.json`, `inputs.sha256`, and `report.json`, allowing you to reproduce results deterministically: rerunning the same manifest yields identical hashes and track layouts.
+7. **دریافت فایل خروجی:**
+
+   ```bash
+   !curl -s -OJ "http://127.0.0.1:8000/download?jobId=<job_id>"
+   ```
+
+خروجی‌های MP4 در مسیر `/content/outputs/<job_id>/final.mp4` (یا در اجراهای محلی `./outputs/<job_id>/final.mp4`) ذخیره می‌شوند. در هر پوشه شغل فایل‌های `manifest_canonical.json`, `inputs.sha256` و `report.json` نیز ذخیره شده‌اند تا اجرای مجدد همان مانیفست نتایج کاملاً تکرارپذیر ایجاد کند.
+
+## راه‌اندازی محلی (Local Run)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+cp backend/.env.example backend/.env
+python backend/main.py
+```
+
+سپس از طریق `http://127.0.0.1:8000/healthz` سلامت سرویس را بررسی کنید و از نمونه دستورات بالا برای ارسال درخواست‌های رندر استفاده نمایید.

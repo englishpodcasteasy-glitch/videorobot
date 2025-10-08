@@ -17,7 +17,7 @@
 ### Root / Scripts / Docs
 - Root `requirements.txt` mirrors backend dependencies for convenience.
 - Helper scripts: `scripts/run_cloudflare_tunnel.sh` (wraps `cloudflared` with env token guard) and `scripts/install_ffmpeg_colab.sh` (installs FFmpeg on fresh Colab runtimes).
-- Documentation & API maps: `docs/api_contract_backend.json`, `docs/api_contract_frontend.json`, `docs/api_harmony_report.json`, plus this report.
+- Documentation & API maps: `docs/api_contract_backend.json`, `docs/api_contract_frontend.json`, `docs/api_harmony_report.json`, به‌همراه `VideoRobot_Colab_Runner.ipynb` برای اجرای خودکار در Colab و همین گزارش.
 
 ## Harmony
 - Frontend performs no live API requests; all backend endpoints are currently unused by the UI.
@@ -41,15 +41,16 @@
 5. Access `http://127.0.0.1:8000/health` to verify service.
 
 ### Colab GPU
-1. Clone the repository inside `/content` and install dependencies: `pip install -r backend/requirements.txt`.
-2. Ensure FFmpeg is present (fresh runtimes need this once): `bash scripts/install_ffmpeg_colab.sh`.
-3. Export `BACKEND_PORT=8000` (and optionally `CF_TUNNEL_HOSTNAME`).
-4. Launch the backend: `python backend/main.py` — this boots the Flask API and renderer queue.
-5. Save a manifest JSON similar to the example in the README (e.g. `/content/manifest.json`).
-6. Submit a render: `curl -X POST http://127.0.0.1:8000/render -H 'Content-Type: application/json' -d @/content/manifest.json`.
-7. Poll progress: `curl http://127.0.0.1:8000/progress/<job_id>` or `curl http://127.0.0.1:8000/status?jobId=<job_id>` until the state becomes `success`.
-8. Download the MP4: `curl -OJ "http://127.0.0.1:8000/download?jobId=<job_id>"` (files land under `/content/outputs/<job_id>/final.mp4`).
-9. Optional: run `scripts/run_cloudflare_tunnel.sh` after installing `cloudflared` and exporting `CF_TUNNEL_TOKEN` to expose the backend securely.
+1. ساده‌ترین مسیر استفاده از نوت‌بوک آماده‌ی [`VideoRobot_Colab_Runner.ipynb`](VideoRobot_Colab_Runner.ipynb) است که تمام مراحل را به‌ترتیب اجرا می‌کند.
+2. در صورت اجرای دستی: مخزن را داخل `/content` کلون کنید و وابستگی‌ها را نصب نمایید: `pip install -r backend/requirements.txt`.
+3. مطمئن شوید FFmpeg نصب است (در رانتایم تازه باید اجرا شود): `bash scripts/install_ffmpeg_colab.sh`.
+4. متغیر `BACKEND_PORT=8000` (و در صورت نیاز `CF_TUNNEL_HOSTNAME`) را تنظیم کنید.
+5. بک‌اند را اجرا نمایید: `python backend/main.py` — این دستور API و صف رندر را بالا می‌آورد.
+6. یک فایل مانیفست مانند مثال موجود در README بسازید (مثلاً `/content/manifest.json`).
+7. درخواست رندر را ارسال کنید: `curl -X POST http://127.0.0.1:8000/render -H 'Content-Type: application/json' -d @/content/manifest.json`.
+8. پیشرفت را با `curl http://127.0.0.1:8000/progress/<job_id>` یا `curl http://127.0.0.1:8000/status?jobId=<job_id>` دنبال کنید تا به `success` برسد.
+9. خروجی MP4 را با `curl -OJ "http://127.0.0.1:8000/download?jobId=<job_id>"` دریافت کنید (فایل‌ها در `/content/outputs/<job_id>/final.mp4` ذخیره می‌شوند).
+10. در صورت نیاز به دسترسی از بیرون، پس از نصب `cloudflared` و تنظیم `CF_TUNNEL_TOKEN`، اسکریپت `scripts/run_cloudflare_tunnel.sh` را اجرا کنید.
 
 ## Next Steps for Operators
 - Copy the provided `.env.example` files to `.env` in both `backend/` and `frontend/`, then fill in any organization-specific values (for example the CORS origin or a Cloudflare tunnel hostname).
