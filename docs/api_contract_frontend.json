@@ -1,6 +1,4 @@
 {
-  "calls": [
-    {"method": "GET", "path": "/healthz"}
-  ],
+  "calls": [],
   "env_keys": ["VITE_API_BASE_URL"]
 }

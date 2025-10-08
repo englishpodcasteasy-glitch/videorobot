@@ -1,7 +1,23 @@
-# Convenience aggregate of backend dependencies for local shells
--r backend/requirements.txt
+# --- web ---
+flask>=3.1
+flask-cors>=4
 
-# UI helpers
-streamlit>=1.39,<2
-pydub>=0.25,<0.27
-tqdm>=4.66,<5
+# --- media toolchain ---
+ffmpeg-python>=0.2
+opencv-python-headless>=4.10
+
+# --- speech/NLP ---
+faster-whisper>=1.0
+ctranslate2>=4.0
+yake>=0.6
+
+# --- numerics ---
+numpy>=1.26
+
+# --- rendering ---
+moviepy>=2,<3
+imageio-ffmpeg>=0.5
+
+# --- schema / imaging ---
+jsonschema>=4.23
+Pillow>=9.5
