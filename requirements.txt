@@ -1,26 +1,7 @@
-# UI
-streamlit>=1.39
+# Convenience aggregate of backend dependencies for local shells
+-r backend/requirements.txt
 
-# Optional API
-flask>=3.0
-flask-cors>=4.0
-
-# Media & utils
-ffmpeg-python>=0.2.0
-pydub>=0.25
-moviepy>=1.0.3
-opencv-python-headless>=4.10
-pillow>=10.3
-numpy>=1.26
-tqdm>=4.66
-typing_extensions>=4.10
-
-# Speech-to-text (Whisper via CTranslate2, بدون نیاز به PyTorch)
-faster-whisper>=1.0.1
-ctranslate2>=4.3.1
-huggingface-hub>=0.23
-sentencepiece>=0.1.99
-tokenizers>=0.15
-
-# Text keywords
-yake>=0.4.8
+# UI helpers
+streamlit>=1.39,<2
+pydub>=0.25,<0.27
+tqdm>=4.66,<5
