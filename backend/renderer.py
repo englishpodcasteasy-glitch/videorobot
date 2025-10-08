@@ -10,19 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+from moviepy import editor as mpe
+from moviepy.audio.fx import all as afx
+from moviepy.video.fx import all as vfx
 from PIL import Image, ImageDraw, ImageFont
-
-try:  # pragma: no cover - import guard for optional dependency resolution
-    import moviepy.editor as mpe
-    from moviepy.audio.fx import all as afx
-    from moviepy.video.fx import all as vfx
-except ModuleNotFoundError as exc:  # pragma: no cover - handled at runtime
-    mpe = None  # type: ignore[assignment]
-    afx = None  # type: ignore[assignment]
-    vfx = None  # type: ignore[assignment]
-    _MOVIEPY_IMPORT_ERROR = exc
-else:
-    _MOVIEPY_IMPORT_ERROR = None
 
 from .utils import sha256_of_paths
 
@@ -31,11 +22,6 @@ class VideoComposer:
     """Compose MP4 videos deterministically from a manifest definition."""
 
     def __init__(self) -> None:
-        if _MOVIEPY_IMPORT_ERROR is not None:
-            raise RuntimeError(
-                "MoviePy is not installed. Run 'pip install -r backend/requirements.txt' "
-                "or install moviepy>=1.0.3 to enable the renderer."
-            ) from _MOVIEPY_IMPORT_ERROR
         self._log = logging.getLogger("VideoRobot.VideoComposer")
         self._last_duration_ms: Optional[int] = None
         self._last_inputs_sha256: Optional[str] = None

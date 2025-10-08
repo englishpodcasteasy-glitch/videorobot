@@ -2,6 +2,7 @@
   "missing_in_backend": [],
   "unused_in_frontend": [
     {"method": "GET", "path": "/health"},
+    {"method": "GET", "path": "/healthz"},
     {"method": "GET", "path": "/version"},
     {"method": "GET", "path": "/list-files"},
     {"method": "POST", "path": "/transcribe"},
