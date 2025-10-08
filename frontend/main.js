@@ -1,6 +1,25 @@
 // Video Creation Platform - Main JavaScript
 // Enhanced interactive functionality with animations and effects
 
+const API_BASE_URL = (() => {
+    if (typeof window === 'undefined') {
+        return 'http://127.0.0.1:8000';
+    }
+    const env = window.ENV || {};
+    return (
+        window.VIDEOROBOT_API_BASE_URL ||
+        window.VITE_API_BASE_URL ||
+        window.API_BASE_URL ||
+        env.VIDEOROBOT_API_BASE_URL ||
+        env.VITE_API_BASE_URL ||
+        'http://127.0.0.1:8000'
+    );
+})();
+
+if (typeof window !== 'undefined') {
+    window.VIDEOROBOT_RESOLVED_BASE_URL = API_BASE_URL;
+}
+
 class VideoCreationPlatform {
     constructor() {
         this.currentProject = null;
@@ -12,6 +31,8 @@ class VideoCreationPlatform {
         this.zoomLevel = 1;
         this.selectedTrack = null;
         this.collaborators = [];
+        this.apiBaseUrl = API_BASE_URL;
+        this.apiStatusInterval = null;
         this.init();
     }
 
@@ -23,6 +44,8 @@ class VideoCreationPlatform {
         this.setupDragAndDrop();
         this.initializeMediaLibrary();
         this.setupCollaboration();
+        this.updateApiStatus();
+        this.apiStatusInterval = setInterval(() => this.updateApiStatus(), 15000);
     }
 
     initializeAnimations() {
@@ -387,6 +410,44 @@ class VideoCreationPlatform {
             collaboratorItem.addEventListener('click', () => this.showCollaboratorInfo(collaborator.id));
             collaboratorsList.appendChild(collaboratorItem);
         });
+    }
+
+    updateApiStatus() {
+        const statusEl = document.getElementById('api-status');
+        if (!statusEl) {
+            return;
+        }
+
+        statusEl.textContent = 'API: Checking…';
+        statusEl.classList.remove('text-red-400', 'text-emerald-400');
+        statusEl.classList.add('text-slate-400');
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        fetch(`${this.apiBaseUrl}/healthz`, { signal: controller.signal })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(() => {
+                statusEl.textContent = 'API: Online';
+                statusEl.classList.remove('text-slate-400', 'text-red-400');
+                statusEl.classList.add('text-emerald-400');
+                statusEl.setAttribute('data-last-checked', new Date().toISOString());
+            })
+            .catch(error => {
+                statusEl.textContent = 'API: Offline';
+                statusEl.classList.remove('text-slate-400', 'text-emerald-400');
+                statusEl.classList.add('text-red-400');
+                statusEl.setAttribute('data-last-error', error.message || String(error));
+                console.error('VideoRobot API health check failed:', error);
+            })
+            .finally(() => {
+                clearTimeout(timeout);
+            });
     }
 
     // Playback Controls

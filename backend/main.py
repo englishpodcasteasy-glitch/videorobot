@@ -29,6 +29,7 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "backend"
 
+from . import __version__ as BACKEND_VERSION
 from .config import (
     Paths,
     ProjectCfg,
@@ -293,8 +294,9 @@ def healthz() -> Any:
 
 @app.get("/version")
 def version_info() -> Any:
+    version = os.getenv("VR_VERSION") or BACKEND_VERSION
     data = {
-        "version": os.getenv("VR_VERSION", "0.0.0"),
+        "version": version,
         "git": os.getenv("GIT_COMMIT", "unknown"),
     }
     return _response_ok(data)

@@ -1,0 +1,30 @@
+{
+  "seed": 42,
+  "video": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "bg_color": "#0F172A"
+  },
+  "tracks": [
+    {
+      "type": "image",
+      "src": "Assets/Background.png",
+      "start": 0,
+      "duration": 8,
+      "x": 0,
+      "y": 0,
+      "scale": 1.0
+    },
+    {
+      "type": "text",
+      "content": "Overlay ready",
+      "start": 0.5,
+      "duration": 5,
+      "x": 80,
+      "y": 96,
+      "size": 64,
+      "color": "#FDE68A"
+    }
+  ]
+}
