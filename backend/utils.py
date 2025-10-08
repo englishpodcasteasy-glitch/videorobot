@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import unicodedata
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence, Any, Dict
@@ -70,6 +71,9 @@ __all__ = [
     "srt_time",
     "hhmmss_cs",
     "docs_guard",
+    "ensure_outputs_dir",
+    "sha256_of_paths",
+    "install_ffmpeg_if_needed",
 ]
 
 # ===========================================================================
@@ -609,6 +613,71 @@ def docs_guard() -> None:
             log.warning("خطا در ایجاد دایرکتوری %s (%s): %s", name, path, e)
 
     log.info("✅ همه دایرکتوری‌ها آماده هستند")
+
+
+# ===========================================================================
+# SECTION 9: Render helpers
+# ===========================================================================
+
+
+def ensure_outputs_dir() -> Path:
+    """Return the best writable outputs directory (Colab-first)."""
+
+    candidates = [Path("/content/outputs"), Path("./outputs")]
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            log.debug("Using outputs directory: %s", candidate)
+            return candidate
+        except Exception as exc:  # pragma: no cover - filesystem guards
+            log.debug("Output dir %s not writable: %s", candidate, exc)
+
+    fallback = Path("./outputs")
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def sha256_of_paths(paths: Sequence[Path]) -> str:
+    """Compute a deterministic SHA256 digest from file stats."""
+
+    sha = hashlib.sha256()
+    resolved: list[Path] = []
+
+    for path in paths:
+        candidate = Path(path)
+        resolved.append(candidate.resolve())
+
+    for path in sorted(resolved):
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"Asset not found: {path}")
+
+        stat = path.stat()
+        payload = f"{path}|{stat.st_size}|{int(stat.st_mtime_ns)}"
+        sha.update(payload.encode("utf-8"))
+
+    return sha.hexdigest()
+
+
+def install_ffmpeg_if_needed() -> None:
+    """Ensure ffmpeg is available, raising a clear error otherwise."""
+
+    try:
+        subprocess.run(
+            ["ffmpeg", "-version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except FileNotFoundError as exc:  # pragma: no cover - runtime guard
+        raise RuntimeError(
+            "ffmpeg binary not found. Run scripts/install_ffmpeg_colab.sh in Colab."
+        ) from exc
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - runtime guard
+        raise RuntimeError(f"ffmpeg is not healthy: {exc.stderr}") from exc
 
 
 # ===========================================================================
