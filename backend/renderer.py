@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
-from moviepy import editor as mpe
+import moviepy.editor as mpe
 from moviepy.audio.fx import all as afx
 from moviepy.video.fx import all as vfx
 from PIL import Image, ImageDraw, ImageFont
