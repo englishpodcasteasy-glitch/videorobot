@@ -16,8 +16,8 @@ from jsonschema import Draft7Validator
 from moviepy import editor as mpe
 
 from .config import Paths
-from renderer import VideoComposer
-from utils import ensure_outputs_dir, install_ffmpeg_if_needed
+from .renderer import VideoComposer
+from .utils import ensure_outputs_dir, install_ffmpeg_if_needed
 
 log = logging.getLogger("VideoRobot.renderer_service")
 
